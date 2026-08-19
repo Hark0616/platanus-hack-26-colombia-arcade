@@ -270,31 +270,34 @@ const FONT_5X7 = {
 
 function pad2(n) { return String(Math.max(0, Math.floor(n))).padStart(2, '0'); }
 
-// retT() & txt() — Renders 100% authentic chunky square 8-bit arcade pixel font
+// retT() & txt() — Renders 100% authentic chunky square 8-bit arcade pixel font on Phaser Graphics
 function retT(x, y, s, sizeOrScale, colHex, origin) {
   let scale = typeof sizeOrScale === 'number' ? (sizeOrScale <= 8 ? sizeOrScale : Math.max(1, Math.round(sizeOrScale / 8))) : 2;
 
   const g = G.add.graphics();
-  let currentText = String(s !== undefined ? s : '');
-  let currentColor = colHex || '#FFFFFF';
-  let currentOrigin = origin !== undefined ? origin : 0.5;
-  let currentX = x, currentY = y;
+  g.currentText = String(s !== undefined ? s : '');
+  g.currentColor = colHex || '#FFFFFF';
+  g.currentOrigin = origin !== undefined ? origin : 0.5;
+  g.textX = x;
+  g.textY = y;
+  g.scaleFactor = scale;
 
-  function render() {
-    g.clear();
-    const lines = currentText.split('\n');
-    const lineHeight = (7 + 2) * scale;
+  g.renderPixelText = function() {
+    this.clear();
+    const lines = this.currentText.split('\n');
+    const sc = this.scaleFactor;
+    const lineHeight = (7 + 2) * sc;
     const maxLineLen = Math.max(...lines.map(l => l.length), 0);
-    const totalW = maxLineLen * (5 + 1) * scale;
+    const totalW = maxLineLen * (5 + 1) * sc;
     const totalH = lines.length * lineHeight;
 
-    const ox = typeof currentOrigin === 'object' ? currentOrigin.x : currentOrigin;
-    const oy = typeof currentOrigin === 'object' ? currentOrigin.y : currentOrigin;
+    const ox = typeof this.currentOrigin === 'object' ? this.currentOrigin.x : this.currentOrigin;
+    const oy = typeof this.currentOrigin === 'object' ? this.currentOrigin.y : this.currentOrigin;
 
-    const startX = currentX - totalW * ox;
-    const startY = currentY - totalH * oy;
+    const startX = this.textX - totalW * ox;
+    const startY = this.textY - totalH * oy;
 
-    const numColor = typeof currentColor === 'number' ? currentColor : parseInt(String(currentColor).replace('#', '0x'), 16) || 0xFFFFFF;
+    const numColor = typeof this.currentColor === 'number' ? this.currentColor : parseInt(String(this.currentColor).replace('#', '0x'), 16) || 0xFFFFFF;
 
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li];
@@ -303,49 +306,72 @@ function retT(x, y, s, sizeOrScale, colHex, origin) {
         const rawCh = line[ci];
         const ch = rawCh.toUpperCase();
         const glyph = FONT_5X7[ch] || FONT_5X7[rawCh] || FONT_5X7['?'] || [0,0,0,0,0,0,0];
-        const charX = startX + ci * (5 + 1) * scale;
+        const charX = startX + ci * (5 + 1) * sc;
 
         // Shadow pixels (1 unit offset)
-        g.fillStyle(0x000000, 0.95);
+        this.fillStyle(0x000000, 0.95);
         for (let r = 0; r < 7; r++) {
           const bits = glyph[r];
           for (let c = 0; c < 5; c++) {
             if ((bits >> (4 - c)) & 1) {
-              g.fillRect(charX + c * scale + scale, lineY + r * scale + scale, scale, scale);
+              this.fillRect(charX + c * sc + sc, lineY + r * sc + sc, sc, sc);
             }
           }
         }
 
-        // Foreground pixel
-        g.fillStyle(numColor, 1);
+        // Foreground pixels
+        this.fillStyle(numColor, 1);
         for (let r = 0; r < 7; r++) {
           const bits = glyph[r];
           for (let c = 0; c < 5; c++) {
             if ((bits >> (4 - c)) & 1) {
-              g.fillRect(charX + c * scale, lineY + r * scale, scale, scale);
+              this.fillRect(charX + c * sc, lineY + r * sc, sc, sc);
             }
           }
         }
       }
     }
-  }
-
-  const obj = {
-    _g: g,
-    setText(newText) { currentText = String(newText !== undefined ? newText : ''); render(); return this; },
-    setColor(newCol) { currentColor = newCol; render(); return this; },
-    setOrigin(o, oy) { currentOrigin = (oy !== undefined ? { x: o, y: oy } : o); render(); return this; },
-    setPosition(nx, ny) { currentX = nx; currentY = ny; render(); return this; },
-    setX(nx) { currentX = nx; render(); return this; },
-    setY(ny) { currentY = ny; render(); return this; },
-    setDepth(d) { g.setDepth(d); return this; },
-    setVisible(v) { g.setVisible(v); return this; },
-    setAlpha(a) { g.setAlpha(a); return this; },
-    destroy() { g.destroy(); },
   };
 
-  render();
-  return obj;
+  g.setText = function(newText) {
+    this.currentText = String(newText !== undefined ? newText : '');
+    this.renderPixelText();
+    return this;
+  };
+
+  g.setColor = function(newCol) {
+    this.currentColor = newCol;
+    this.renderPixelText();
+    return this;
+  };
+
+  g.setOrigin = function(o, oy) {
+    this.currentOrigin = (oy !== undefined ? { x: o, y: oy } : o);
+    this.renderPixelText();
+    return this;
+  };
+
+  g.setPosition = function(nx, ny) {
+    this.textX = nx;
+    this.textY = ny;
+    this.renderPixelText();
+    return this;
+  };
+
+  g.setX = function(nx) {
+    this.textX = nx;
+    this.renderPixelText();
+    return this;
+  };
+
+  g.setY = function(ny) {
+    this.textY = ny;
+    this.renderPixelText();
+    return this;
+  };
+
+  g.renderPixelText();
+  return g;
 }
 
 function txt(x, y, s, size, color, origin) {
@@ -914,10 +940,6 @@ function showIntro() {
   G.tweens.killTweensOf(UI.introBtn);
   G.tweens.add({ targets: UI.introBtn, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
-  // pulse title
-  G.tweens.killTweensOf(UI.introTitle);
-  G.tweens.add({ targets: UI.introTitle, scale: 1.03, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-
   introData = { ready: false };
 }
 
@@ -976,8 +998,8 @@ function showTransition(mg) {
   UI.transName.setText(MG_NAMES[mg] || mg.toUpperCase());
   UI.transHint.setText(MG_HINTS[mg] || '');
   UI.transTimer.setText('¡PREPÁRENSE!');
-  UI.transName.setScale(0.5).setAlpha(0);
-  G.tweens.add({ targets: UI.transName, scale: 1, alpha: 1, duration: 400, ease: 'Back.Out' });
+  UI.transName.setAlpha(0);
+  G.tweens.add({ targets: UI.transName, alpha: 1, duration: 400 });
 
   playJingle('start');
   transData = { startTime: G.time.now, duration: 2800 };

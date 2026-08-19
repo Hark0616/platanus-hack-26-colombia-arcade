@@ -241,11 +241,53 @@ function shake(frames) {
 
 function pad2(n) { return String(Math.max(0, Math.floor(n))).padStart(2, '0'); }
 
+// txt() — texto con stroke negro para legibilidad retro
 function txt(x, y, s, size, color, origin, bold) {
   return G.add.text(x, y, s, {
     fontFamily: 'monospace', fontSize: (size || 16) + 'px',
     color: color || '#FFFFFF', fontStyle: bold ? 'bold' : 'normal',
+    stroke: '#000000', strokeThickness: bold ? 4 : 2,
   }).setOrigin(origin !== undefined ? origin : 0.5);
+}
+
+// retT() — texto retro con glow-shadow y stroke fuerte (para UI del juego)
+function retT(x, y, s, size, colHex, origin) {
+  return G.add.text(x, y, s, {
+    fontFamily: 'monospace', fontSize: (size || 14) + 'px',
+    color: colHex || '#FFFFFF', fontStyle: 'bold',
+    stroke: '#000000', strokeThickness: 4,
+    shadow: { offsetX: 0, offsetY: 0, color: colHex || '#FFFFFF', blur: 8, fill: true },
+  }).setOrigin(origin !== undefined ? origin : 0.5);
+}
+
+// scorePanel() — panel retro detrás de un texto de puntuación
+function scorePanel(x, y, w, h, colHex) {
+  const bg = rect(x, y, w, h, 0x000000, 0.85);
+  bg.setStrokeStyle(1, colHex === C.p1t ? C.p1 : C.p2, 0.7);
+  bg.setDepth(4);
+  return bg;
+}
+
+// drawArenaFrame() — marco neon alrededor del área de juego de un jugador
+function drawArenaFrame(arena) {
+  const g = G.add.graphics();
+  g.setDepth(6);
+  const col = arena === 0 ? C.p1 : C.p2;
+  const ax = arena === 0 ? 2 : HALF + 2;
+  const aw = HALF - 4;
+  // Marco exterior
+  g.lineStyle(2, col, 0.5);
+  g.strokeRect(ax, 58, aw, H - 64);
+  // Marco interior más sutil
+  g.lineStyle(1, col, 0.12);
+  g.strokeRect(ax + 4, 62, aw - 8, H - 72);
+  // Esquinas pixel-art (pequeños cuadrados en cada esquina)
+  g.fillStyle(col, 0.9);
+  [[ax, 58],[ax + aw - 4, 58],[ax, H - 6],[ax + aw - 4, H - 6]].forEach(([cx, cy]) => {
+    g.fillRect(cx, cy, 4, 4);
+  });
+  mgObjects.push(g);
+  return g;
 }
 
 function rect(x, y, w, h, col, alpha) {
@@ -257,8 +299,203 @@ function circ(x, y, r, col, alpha) {
   return G.add.circle(x, y, r, col, alpha !== undefined ? alpha : 1);
 }
 
-function destroy(arr) {
-  for (const o of arr) { if (o && o.destroy) o.destroy(); }
+// ─── PIXEL ART HELPERS ──────────────────────────────────────────────────────
+// Helper to draw a pixel grid from a multi-line string pattern
+function drawPixelMatrix(g, matrix, palette, startX, startY, pixelSize = 2) {
+  for (let r = 0; r < matrix.length; r++) {
+    const row = matrix[r];
+    for (let c = 0; c < row.length; c++) {
+      const char = row[c];
+      if (char !== '.' && palette[char] !== undefined) {
+        g.fillStyle(palette[char], 1);
+        g.fillRect(startX + c * pixelSize, startY + r * pixelSize, pixelSize, pixelSize);
+      }
+    }
+  }
+}
+
+// Procedural pixel-art Arepa
+function createPixelArepa(x, y) {
+  const g = G.add.graphics({ x, y });
+  // Octagonal chunky 8-bit arepa with toasted grill marks
+  // 12x12 grid (pixelSize = 2 -> 24x24px)
+  const pattern = [
+    '..YYYYYY....',
+    '.YYYYYYYYY..',
+    'YYYYYYYYYYY.',
+    'YYDDYYYYDDYY',
+    'YYDDYYYYDDYY',
+    'YYYYYYYYYYYY',
+    'YYDDYYYYDDYY',
+    'YYDDYYYYDDYY',
+    'YYYYYYYYYYYY',
+    'YYYYYYYYYYY.',
+    '.YYYYYYYYY..',
+    '..YYYYYY....',
+  ];
+  const palette = {
+    Y: 0xF7B32B, // Golden corn dough
+    D: 0x8D5B18, // Toasted brown grill marks
+  };
+  drawPixelMatrix(g, pattern, palette, -12, -12, 2);
+  g.setDepth(5);
+  return g;
+}
+
+// Procedural pixel-art Carbón (Burnt ember)
+function createPixelCarbon(x, y) {
+  const g = G.add.graphics({ x, y });
+  const pattern = [
+    '..KKKKKK....',
+    '.KKRRRRKKK..',
+    'KKRRFFRRKKK.',
+    'KKRFFFFRKKKK',
+    'KKRFFFFRKKKK',
+    'KKKRRRRKKKKK',
+    'KKKKKKRRKKKK',
+    'KKKKKKRRKKKK',
+    'KKKRRRRKKKKK',
+    'KKKKKKKKKKK.',
+    '.KKKKKKKKK..',
+    '..KKKKKK....',
+  ];
+  const palette = {
+    K: 0x1A1A1A, // Pitch black crust
+    R: 0x881100, // Dark red ember
+    F: 0xFF4400, // Fiery glow
+  };
+  drawPixelMatrix(g, pattern, palette, -12, -12, 2);
+  g.setDepth(5);
+  return g;
+}
+
+// Procedural pixel-art Tejo Puck (Heavy metal puck)
+function createPixelTejo(x, y) {
+  const g = G.add.graphics({ x, y });
+  const pattern = [
+    '..SSSS..',
+    '.SMMMMSS',
+    'SMMHHMMSS',
+    'SMMHHMMSS',
+    'SMMMMMMSS',
+    '.SSSSSS.',
+  ];
+  const palette = {
+    S: 0x333344, // Dark iron shadow
+    M: 0x777788, // Cast iron body
+    H: 0xCCCCDD, // Metal highlight reflection
+  };
+  drawPixelMatrix(g, pattern, palette, -9, -9, 2);
+  g.setDepth(15);
+  return g;
+}
+
+// Procedural pixel-art Mecha (Triangle gunpowder packet)
+function createPixelMecha(x, y) {
+  const g = G.add.graphics({ x, y });
+  // Diamond/Triangle gunpowder mecha with white paper wrapper & red core
+  const pattern = [
+    '....WW....',
+    '...WRRW...',
+    '..WRRRRW..',
+    '.WRRFFRRW.',
+    '..WRRRRW..',
+    '...WRRW...',
+    '....WW....',
+  ];
+  const palette = {
+    W: 0xEEEEEE, // White paper wrapper
+    R: 0xDD2200, // Red gunpowder sign
+    F: 0xFFFF00, // Sparking yellow core
+  };
+  drawPixelMatrix(g, pattern, palette, -10, -7, 2);
+  g.setDepth(6);
+  return g;
+}
+
+// Procedural pixel-art Pocillo de Peltre (Colombian enamel mug)
+function createPixelPocillo(g, x, y, tiltAngle) {
+  g.clear();
+  g.save();
+  g.translateCanvas(x, y);
+  g.rotateCanvas((tiltAngle * Math.PI) / 180);
+
+  // Mug Body: White/Cream with classic Blue Enamel Rim
+  const pattern = [
+    'BBBBBBBBBBBB....',
+    'WWWWWWWWWWWW.BB.',
+    'WWWWWWWWWWWW.WW.',
+    'WWWWWWWWWWWW.WW.',
+    'WWWWWWWWWWWW.BB.',
+    'WWWWWWWWWWWW....',
+    'WWWWWWWWWWWW....',
+    'WWWWWWWWWWWW....',
+    'BBBBBBBBBBBB....',
+  ];
+  const palette = {
+    B: 0x0038A8, // Blue enamel rim and handle
+    W: 0xF0EAD6, // Cream mug body
+  };
+  drawPixelMatrix(g, pattern, palette, -16, -18, 2);
+
+  // Coffee liquid level inside
+  g.fillStyle(0x3B1A06, 1);
+  g.fillRect(-14, -10, 20, 14);
+
+  g.restore();
+}
+
+// Procedural pixel-art Chiva Bus
+function createPixelChiva(x, y, isP1) {
+  const g = G.add.graphics({ x, y });
+  // Chiva Colombiana: Luggage roof rack, colored body stripes, windshield, tires
+  const pattern = [
+    '..YYYYGGGGCCCC..', // Roof rack with bananas/luggage
+    '.RRRRRRRRRRRRRR.', // Roof ladder / rack base
+    'CWWWWWWWWWWWWWWC', // Windshield visor
+    'CWWCCCCCCWWWWWWC', // Glass windows
+    'YYYYYYYYYYYYYYYY', // Yellow flag stripe
+    'BBBBBBBBBBBBBBBB', // Blue flag stripe
+    'RRRRRRRRRRRRRRRR', // Red flag stripe
+    'TT.LLLLLLLLLL.TT', // Wheel wells & wooden ladder
+    'TT............TT', // Chunky square tires
+  ];
+  const palette = {
+    Y: 0xFFD700, // Yellow stripe / bananas
+    G: 0x00AA44, // Green luggage / plantains
+    C: 0x00E5FF, // Cyan windshield / mirrors
+    R: 0xDD1100, // Red stripe / roof rack
+    W: 0xFFFFFF, // Window frame / lights
+    B: isP1 ? 0x0033AA : 0x8800AA, // Blue stripe (P1) or Purple stripe (P2)
+    L: 0x8B4513, // Wooden ladder
+    T: 0x111111, // Square black tires
+  };
+  drawPixelMatrix(g, pattern, palette, -24, -18, 3);
+  g.setDepth(10);
+  return g;
+}
+
+// Procedural pixel-art Obstacle (Rock / Crag)
+function createPixelObstacle(x, y) {
+  const g = G.add.graphics({ x, y });
+  const pattern = [
+    '....GGGG....',
+    '..GGMMMMGG..',
+    '.GMMHHHHMMG.',
+    'GMMHHSSHHMMG',
+    'GMMSSSSSSMMG',
+    '.GMMMMMMMMG.',
+    '..GGGGGGGG..',
+  ];
+  const palette = {
+    G: 0x222222, // Dark stone outline
+    M: 0x555566, // Mid stone grey
+    H: 0x888899, // Highlight rock face
+    S: 0x333344, // Shadow facet
+  };
+  drawPixelMatrix(g, pattern, palette, -18, -10, 3);
+  g.setDepth(5);
+  return g;
 }
 
 // ─── CONFETI ───────────────────────────────────────────────────────────────
@@ -470,41 +707,96 @@ function buildUI(scene) {
 
   // ── RESULT SCREEN
   UI.result = scene.add.container(0, 0).setDepth(35).setVisible(false);
-  UI.result.add(rect(W/2, H/2, W, H, C.bg, 0.93));
-  UI.resultTitle = scene.add.text(W/2, 130, '', {
-    fontFamily: 'monospace', fontSize: '22px', color: '#aaaaaa',
+  UI.result.add(rect(W/2, H/2, W, H, C.bg, 0.97));
+  // Neon bars top/bottom
+  UI.result.add(rect(W/2, 3, W, 6, C.p1, 0.7));
+  UI.result.add(rect(W/2, H-3, W, 6, C.p2, 0.7));
+  // Decorative side lines
+  UI.result.add(rect(3, H/2, 6, H, C.p1, 0.2));
+  UI.result.add(rect(W-3, H/2, 6, H, C.p2, 0.2));
+
+  UI.resultTitle = scene.add.text(W/2, 80, '', {
+    fontFamily: 'monospace', fontSize: '16px', color: C.neont, fontStyle: 'bold',
+    stroke: '#000000', strokeThickness: 3,
+    shadow: { offsetX: 0, offsetY: 0, color: C.neont, blur: 6, fill: true },
   }).setOrigin(0.5); UI.result.add(UI.resultTitle);
-  UI.resultWinner = scene.add.text(W/2, 220, '', {
-    fontFamily: 'monospace', fontSize: '40px', color: C.p1t, fontStyle: 'bold', align: 'center',
+
+  UI.result.add(scene.add.text(W/2, 113, '────────────────────────', {
+    fontFamily: 'monospace', fontSize: '14px', color: '#333355',
+  }).setOrigin(0.5));
+
+  UI.resultWinner = scene.add.text(W/2, 200, '', {
+    fontFamily: 'monospace', fontSize: '42px', color: C.p1t, fontStyle: 'bold',
+    align: 'center', stroke: '#000000', strokeThickness: 5,
+    shadow: { offsetX: 0, offsetY: 0, color: C.p1t, blur: 12, fill: true },
   }).setOrigin(0.5); UI.result.add(UI.resultWinner);
-  UI.resultPts = scene.add.text(W/2, 300, '', {
-    fontFamily: 'monospace', fontSize: '20px', color: '#cccccc', align: 'center',
+
+  UI.result.add(scene.add.text(W/2, 267, '────────────────────────', {
+    fontFamily: 'monospace', fontSize: '14px', color: '#333355',
+  }).setOrigin(0.5));
+
+  UI.resultPts = scene.add.text(W/2, 310, '', {
+    fontFamily: 'monospace', fontSize: '20px', color: '#dddddd',
+    align: 'center', stroke: '#000000', strokeThickness: 3,
   }).setOrigin(0.5); UI.result.add(UI.resultPts);
-  UI.resultTotal = scene.add.text(W/2, 380, '', {
-    fontFamily: 'monospace', fontSize: '16px', color: '#888888', align: 'center',
+
+  UI.resultTotal = scene.add.text(W/2, 385, '', {
+    fontFamily: 'monospace', fontSize: '15px', color: '#666688',
+    align: 'center', stroke: '#000000', strokeThickness: 2,
   }).setOrigin(0.5); UI.result.add(UI.resultTotal);
-  UI.resultNext = scene.add.text(W/2, H - 50, '', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#555555',
+
+  UI.resultNext = scene.add.text(W/2, H - 35, '', {
+    fontFamily: 'monospace', fontSize: '13px', color: '#444466',
+    stroke: '#000000', strokeThickness: 2,
   }).setOrigin(0.5); UI.result.add(UI.resultNext);
 
   // ── FINAL SCREEN
   UI.final = scene.add.container(0, 0).setDepth(45).setVisible(false);
-  UI.final.add(rect(W/2, H/2, W, H, C.bg, 0.97));
-  UI.finalWinner = scene.add.text(W/2, 120, '', {
-    fontFamily: 'monospace', fontSize: '44px', color: C.p1t, fontStyle: 'bold', align: 'center',
+  UI.final.add(rect(W/2, H/2, W, H, C.bg, 1));
+  // Neon frame
+  const fg = scene.add.graphics(); fg.setDepth(1);
+  fg.lineStyle(3, C.p1, 0.6); fg.strokeRect(8, 8, W-16, H-16);
+  fg.lineStyle(1, C.p2, 0.3); fg.strokeRect(14, 14, W-28, H-28);
+  // Corner squares
+  fg.fillStyle(C.p1, 1);
+  [[8,8],[W-12,8],[8,H-12],[W-12,H-12]].forEach(([cx,cy])=>fg.fillRect(cx,cy,4,4));
+  UI.final.add(fg);
+
+  UI.final.add(rect(W/2, 50, 700, 2, C.p1, 0.4));
+
+  UI.finalWinner = scene.add.text(W/2, 100, '', {
+    fontFamily: 'monospace', fontSize: '38px', color: C.p1t, fontStyle: 'bold',
+    align: 'center', stroke: '#000000', strokeThickness: 5,
+    shadow: { offsetX: 0, offsetY: 0, color: C.p1t, blur: 16, fill: true },
   }).setOrigin(0.5); UI.final.add(UI.finalWinner);
-  UI.finalSub = scene.add.text(W/2, 200, '', {
-    fontFamily: 'monospace', fontSize: '18px', color: '#cccccc', align: 'center',
+
+  UI.finalSub = scene.add.text(W/2, 176, '', {
+    fontFamily: 'monospace', fontSize: '16px', color: C.neont,
+    align: 'center', stroke: '#000000', strokeThickness: 3,
   }).setOrigin(0.5); UI.final.add(UI.finalSub);
+
+  UI.final.add(rect(W/2, 210, 700, 2, C.div, 0.6));
+
   UI.finalScores = scene.add.text(W/2, 270, '', {
-    fontFamily: 'monospace', fontSize: '36px', fontStyle: 'bold', align: 'center',
-    color: '#FFFFFF',
+    fontFamily: 'monospace', fontSize: '40px', fontStyle: 'bold', align: 'center',
+    color: '#FFFFFF', stroke: '#000000', strokeThickness: 5,
   }).setOrigin(0.5); UI.final.add(UI.finalScores);
-  UI.finalBoard = scene.add.text(W/2, 380, '', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#aaaaaa', align: 'center', lineSpacing: 4,
+
+  UI.final.add(rect(W/2, 330, 700, 2, C.div, 0.6));
+
+  UI.final.add(scene.add.text(W/2, 355, '◄  TOP SCORES  ►', {
+    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
+    stroke: '#000000', strokeThickness: 2,
+  }).setOrigin(0.5));
+
+  UI.finalBoard = scene.add.text(W/2, 400, '', {
+    fontFamily: 'monospace', fontSize: '15px', color: '#bbbbcc',
+    align: 'center', lineSpacing: 6, stroke: '#000000', strokeThickness: 2,
   }).setOrigin(0.5); UI.final.add(UI.finalBoard);
-  UI.finalBtn = scene.add.text(W/2, H - 45, 'PRESIONA START PARA JUGAR DE NUEVO', {
-    fontFamily: 'monospace', fontSize: '13px', color: '#555555',
+
+  UI.finalBtn = scene.add.text(W/2, H - 30, '►  PRESIONA START PARA JUGAR DE NUEVO  ◄', {
+    fontFamily: 'monospace', fontSize: '12px', color: '#555577',
+    stroke: '#000000', strokeThickness: 2,
   }).setOrigin(0.5); UI.final.add(UI.finalBtn);
 
   // ── NAME ENTRY (letras para highscore)
@@ -904,24 +1196,33 @@ function initArepa() {
   d.nextSpawn = G.time.now + 400;
   d.speed = ARP.BASE_SPEED;
 
-  // Draw arena dividers
-  const left = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.4);
-  const right = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.4);
+  // Arena backgrounds
+  const left = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
+  const right = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
   mgObjects.push(left, right);
+
+  // Neon arena frames
+  drawArenaFrame(0);
+  drawArenaFrame(1);
+
+  // Player labels retro style
+  const lbl1 = retT(HALF / 2, 76, '◄ PLAYER 1 ►', 12, C.p1t, 0.5);
+  const lbl2 = retT(HALF + HALF / 2, 76, '◄ PLAYER 2 ►', 12, C.p2t, 0.5);
+  lbl1.setDepth(7); lbl2.setDepth(7);
+  mgObjects.push(lbl1, lbl2);
 
   // Draw baskets
   for (const b of d.baskets) {
     b.gfx = G.add.rectangle(b.x, ARP.BASKET_Y, ARP.BASKET_W, ARP.BASKET_H, b.col);
-    b.scoreTxt = G.add.text(b.x, ARP.BASKET_Y - 24, '0', {
-      fontFamily: 'monospace', fontSize: '18px', color: b.col === C.p1 ? C.p1t : C.p2t, fontStyle: 'bold',
-    }).setOrigin(0.5);
-    mgObjects.push(b.gfx, b.scoreTxt);
+    b.gfx.setDepth(5);
+    // Score panel retro
+    const isP1 = b.col === C.p1;
+    const sx = isP1 ? HALF / 2 : HALF + HALF / 2;
+    const sp = scorePanel(sx, ARP.BASKET_Y - 32, 72, 22, isP1 ? C.p1t : C.p2t);
+    b.scoreTxt = retT(sx, ARP.BASKET_Y - 32, '0', 16, isP1 ? C.p1t : C.p2t, 0.5);
+    b.scoreTxt.setDepth(5);
+    mgObjects.push(b.gfx, sp, b.scoreTxt);
   }
-
-  // P1 label left, P2 label right
-  const lbl1 = G.add.text(HALF / 2, 65, 'PLAYER 1', { fontFamily: 'monospace', fontSize: '13px', color: C.p1t }).setOrigin(0.5);
-  const lbl2 = G.add.text(HALF + HALF / 2, 65, 'PLAYER 2', { fontFamily: 'monospace', fontSize: '13px', color: C.p2t }).setOrigin(0.5);
-  mgObjects.push(lbl1, lbl2);
 }
 
 function tickArepa(time, delta) {
@@ -998,17 +1299,8 @@ function spawnArepaItem(time) {
   const x = xMin + Math.random() * (xMax - xMin);
   const isArepa = Math.random() < 0.68;
 
-  const gfx = isArepa
-    ? G.add.circle(x, 55, ARP.ITEM_R, C.arepa)
-    : G.add.rectangle(x, 55, 14, 14, C.carbon);
+  const gfx = isArepa ? createPixelArepa(x, 55) : createPixelCarbon(x, 55);
 
-  // Details: small dots on arepa
-  if (isArepa) {
-    // golden border look
-    gfx.setStrokeStyle(2, C.arepaDk);
-  }
-
-  gfx.setDepth(5);
   mgObjects.push(gfx);
   d.items.push({ x, y: 55, gfx, type: isArepa ? 'arepa' : 'carbon', arena });
 }
@@ -1048,44 +1340,44 @@ function initChiva() {
   d.laneLines = [];
 
   // Arena backgrounds
-  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.35);
-  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.35);
+  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
+  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
   mgObjects.push(bg1, bg2);
 
-  // Lane lines
+  // Neon arena frames
+  drawArenaFrame(0);
+  drawArenaFrame(1);
+
+  // Lane lines (retro dashed feel)
   for (let ar = 0; ar < 2; ar++) {
     for (let ln = 1; ln < CH.LANES; ln++) {
       const x = laneX(ar, ln) - CH.LANE_W / 2;
-      const line = G.add.rectangle(x, H / 2, 2, H, C.div, 0.3);
+      const line = G.add.rectangle(x, H / 2, 2, H, C.div, 0.5);
       mgObjects.push(line);
     }
   }
 
-  // Labels
-  const l1 = G.add.text(HALF / 2, 65, 'PLAYER 1', { fontFamily: 'monospace', fontSize: '13px', color: C.p1t }).setOrigin(0.5);
-  const l2 = G.add.text(HALF + HALF / 2, 65, 'PLAYER 2', { fontFamily: 'monospace', fontSize: '13px', color: C.p2t }).setOrigin(0.5);
+  // Retro Player labels
+  const l1 = retT(HALF / 2, 76, '◄ PLAYER 1 ►', 12, C.p1t, 0.5);
+  const l2 = retT(HALF + HALF / 2, 76, '◄ PLAYER 2 ►', 12, C.p2t, 0.5);
+  l1.setDepth(7); l2.setDepth(7);
   mgObjects.push(l1, l2);
 
-  // Draw chivas and life indicators
+  // Draw pixel-art chivas and life indicators
   for (const p of d.players) {
     const cx = laneX(p.arena, p.lane);
     const cy = H - 100;
-    // Chiva body (colorful stacked rectangles)
-    const body1 = G.add.rectangle(cx, cy, CH.CHIVA_W, 14, p.arena === 0 ? C.ch1 : C.ch3);
-    const body2 = G.add.rectangle(cx, cy + 14, CH.CHIVA_W, 12, p.arena === 0 ? C.ch2 : C.ch4);
-    const body3 = G.add.rectangle(cx, cy + 22, CH.CHIVA_W, 10, p.arena === 0 ? C.ch3 : C.ch2);
-    const wheel1 = G.add.circle(cx - 18, cy + 28, 6, C.dark);
-    const wheel2 = G.add.circle(cx + 18, cy + 28, 6, C.dark);
-    p.gfxParts = [body1, body2, body3, wheel1, wheel2];
+    // Pixel art chiva
+    p.gfx = createPixelChiva(cx, cy, p.player === 'p1');
     p.targetX = cx;
     p.currentX = cx;
-    for (const gfx of p.gfxParts) mgObjects.push(gfx);
+    mgObjects.push(p.gfx);
 
-    // Lives
+    // Lives in pixel hearts
     const livesArr = [];
     for (let i = 0; i < CH.MAX_LIVES; i++) {
-      const hx = (p.arena === 0 ? 20 : HALF + 20) + i * 22;
-      const h = G.add.text(hx, H - 18, '♥', { fontFamily: 'monospace', fontSize: '16px', color: C.p1t }).setOrigin(0, 0.5);
+      const hx = (p.arena === 0 ? 20 : HALF + 20) + i * 24;
+      const h = retT(hx, H - 24, '♥', 18, '#FF2222', 0);
       livesArr.push(h);
       mgObjects.push(h);
     }
@@ -1121,14 +1413,8 @@ function tickChiva(time, delta) {
     p.currentX += (p.targetX - p.currentX) * Math.min(1, dt * 12);
 
     // Move gfx
-    const cy = H - 100;
-    const parts = p.gfxParts;
-    if (parts) {
-      parts[0].setX(p.currentX); parts[0].setY(cy);
-      parts[1].setX(p.currentX); parts[1].setY(cy + 14);
-      parts[2].setX(p.currentX); parts[2].setY(cy + 22);
-      parts[3].setX(p.currentX - 18); parts[3].setY(cy + 28);
-      parts[4].setX(p.currentX + 18); parts[4].setY(cy + 28);
+    if (p.gfx) {
+      p.gfx.setX(p.currentX);
     }
   }
 
@@ -1158,13 +1444,13 @@ function tickChiva(time, delta) {
         playJingle('crash');
         shake(6);
         // flash the chiva
-        for (const g of p.gfxParts) {
-          G.tweens.add({ targets: g, alpha: 0.2, duration: 80, yoyo: true, repeat: 2,
-            onComplete: () => g.setAlpha(1) });
+        if (p.gfx) {
+          G.tweens.add({ targets: p.gfx, alpha: 0.2, duration: 80, yoyo: true, repeat: 2,
+            onComplete: () => p.gfx.setAlpha(1) });
         }
         if (p.lives <= 0) {
           p.alive = false;
-          for (const g of p.gfxParts) g.setAlpha(0.2);
+          if (p.gfx) p.gfx.setAlpha(0.2);
           d.localScores[p.player] = 0; // penalty for dying
         } else {
           d.localScores[p.player] += 5; // survive points
@@ -1201,14 +1487,10 @@ function tickChiva(time, delta) {
 
 function spawnChivaObs(time) {
   const d = mgData;
-  const OBS_COLORS = [0xFF6600, 0xAA4400, 0x884400, 0x662200];
   for (let arena = 0; arena < 2; arena++) {
     const lane = Math.floor(Math.random() * CH.LANES);
     const x = laneX(arena, lane);
-    const col = OBS_COLORS[Math.floor(Math.random() * OBS_COLORS.length)];
-    const gfx = G.add.rectangle(x, 70, CH.OBS_W - 4, CH.OBS_H, col);
-    gfx.setStrokeStyle(2, C.dark, 0.8);
-    gfx.setDepth(5);
+    const gfx = createPixelObstacle(x, 70);
     mgObjects.push(gfx);
     d.obstacles.push({ arena, lane, x, y: 70, gfx, hit: false, scored: false });
   }
@@ -1257,29 +1539,36 @@ function initTejo() {
 
   const MECHAS_PER_ARENA = 3;
   // Arena backgrounds
-  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.35);
-  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.35);
+  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
+  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
   mgObjects.push(bg1, bg2);
 
-  // Labels
-  const l1 = G.add.text(HALF / 2, 65, 'PLAYER 1', { fontFamily: 'monospace', fontSize: '13px', color: C.p1t }).setOrigin(0.5);
-  const l2 = G.add.text(HALF + HALF / 2, 65, 'PLAYER 2', { fontFamily: 'monospace', fontSize: '13px', color: C.p2t }).setOrigin(0.5);
+  // Neon arena frames
+  drawArenaFrame(0);
+  drawArenaFrame(1);
+
+  // Retro Player labels
+  const l1 = retT(HALF / 2, 76, '◄ PLAYER 1 ►', 12, C.p1t, 0.5);
+  const l2 = retT(HALF + HALF / 2, 76, '◄ PLAYER 2 ►', 12, C.p2t, 0.5);
+  l1.setDepth(7); l2.setDepth(7);
   mgObjects.push(l1, l2);
 
-  // Spawn mechas in each arena
+  // Spawn pixel-art clay court & mechas in each arena
   for (let ar = 0; ar < 2; ar++) {
     const aX = ar === 0 ? 20 : HALF + 20;
     const aW = HALF - 40;
     for (let i = 0; i < MECHAS_PER_ARENA; i++) {
       const mx = aX + 40 + Math.random() * (aW - 80);
       const my = 120 + Math.random() * 200;
-      const outer = G.add.circle(mx, my, TJ.MECHA_R + 6, 0x330000);
-      const inner = G.add.circle(mx, my, TJ.MECHA_R, C.mecha);
-      const core = G.add.circle(mx, my, 5, C.mechaG);
+      // Clay box (caja de greda)
+      const clayBox = G.add.rectangle(mx, my, TJ.MECHA_R * 2 + 10, TJ.MECHA_R * 2 + 10, 0x5C2E0A);
+      clayBox.setStrokeStyle(2, 0x3D1E07);
+      // Pixel mecha
+      const mechaGfx = createPixelMecha(mx, my);
       // Pulse animation
-      G.tweens.add({ targets: inner, scale: 1.15, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      mgObjects.push(outer, inner, core);
-      d.mechas.push({ x: mx, y: my, arena: ar, active: true, outer, inner, core });
+      G.tweens.add({ targets: mechaGfx, scale: 1.25, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      mgObjects.push(clayBox, mechaGfx);
+      d.mechas.push({ x: mx, y: my, arena: ar, active: true, gfx: mechaGfx, box: clayBox });
     }
   }
 
@@ -1293,21 +1582,18 @@ function initTejo() {
     d.players[ar].launchY = py;
 
     // Throw counter
-    const cntTxt = G.add.text(px, py + 28, 'TIROS: ' + TJ.MAX_THROWS, {
-      fontFamily: 'monospace', fontSize: '13px', color: ar === 0 ? C.p1t : C.p2t,
-    }).setOrigin(0.5);
+    const cntTxt = retT(px, py + 26, 'TIROS: ' + TJ.MAX_THROWS, 12, ar === 0 ? C.p1t : C.p2t, 0.5);
     mgObjects.push(cntTxt);
     d.players[ar].throwTxt = cntTxt;
 
     // Score text
-    const sTxt = G.add.text(px, py + 46, '0 pts', {
-      fontFamily: 'monospace', fontSize: '16px', color: ar === 0 ? C.p1t : C.p2t, fontStyle: 'bold',
-    }).setOrigin(0.5);
+    const sTxt = retT(px, py + 44, '0 pts', 15, ar === 0 ? C.p1t : C.p2t, 0.5);
     mgObjects.push(sTxt);
     d.players[ar].scoreTxt = sTxt;
 
     // Charge bar bg
-    const barBg = G.add.rectangle(px, py - 22, 80, 8, 0x222222);
+    const barBg = G.add.rectangle(px, py - 22, 80, 8, 0x111122);
+    barBg.setStrokeStyle(1, C.div, 0.8);
     const barFg = G.add.rectangle(px - 40, py - 22, 0, 8, ar === 0 ? C.p1 : C.p2);
     barFg.setOrigin(0, 0.5);
     mgObjects.push(barBg, barFg);
@@ -1355,8 +1641,7 @@ function tickTejo(time, delta) {
         p.charge = 0;
         p.barFg.setSize(0, 8);
         if (!p.tejo) {
-          p.tejo = G.add.circle(p.tx, p.ty, TJ.TEJO_R, C.tejo);
-          p.tejo.setStrokeStyle(2, 0x5A3A2A);
+          p.tejo = createPixelTejo(p.tx, p.ty);
           mgObjects.push(p.tejo);
         } else {
           p.tejo.setPosition(p.tx, p.ty).setAlpha(1);
@@ -1364,28 +1649,22 @@ function tickTejo(time, delta) {
         playJingle('launch');
       }
 
-      // Draw aim line
+      // Draw aim line (retro pixel dots)
       if (p.aimGfx) {
         p.aimGfx.clear();
         if (!p.charging && p.tejos > 0) {
           const rad = (p.angle * Math.PI) / 180;
-          p.aimGfx.lineStyle(1, p.arena === 0 ? C.p1 : C.p2, 0.4);
-          for (let seg = 0; seg < 8; seg++) {
-            if (seg % 2 === 0) {
-              const sx = p.launchX + Math.cos(rad) * seg * 20;
-              const sy = p.launchY + Math.sin(rad) * seg * 20;
-              const ex = p.launchX + Math.cos(rad) * (seg + 1) * 20;
-              const ey = p.launchY + Math.sin(rad) * (seg + 1) * 20;
-              p.aimGfx.beginPath();
-              p.aimGfx.moveTo(sx, sy);
-              p.aimGfx.lineTo(ex, ey);
-              p.aimGfx.strokePath();
-            }
+          p.aimGfx.fillStyle(p.arena === 0 ? C.p1 : C.p2, 0.7);
+          for (let seg = 1; seg <= 7; seg++) {
+            const sx = p.launchX + Math.cos(rad) * seg * 22;
+            const sy = p.launchY + Math.sin(rad) * seg * 22;
+            p.aimGfx.fillRect(sx - 2, sy - 2, 4, 4); // Square pixel dots
           }
         } else if (p.charging) {
-          // Show charge ring
+          // Show charge box in chunky pixels
           p.aimGfx.lineStyle(2, p.arena === 0 ? C.p1 : C.p2, p.charge);
-          p.aimGfx.strokeCircle(p.launchX, p.launchY, 20 + p.charge * 30);
+          const sz = 16 + p.charge * 24;
+          p.aimGfx.strokeRect(p.launchX - sz/2, p.launchY - sz/2, sz, sz);
         }
       }
     } else if (p.flying && p.tejo) {
@@ -1403,9 +1682,8 @@ function tickTejo(time, delta) {
         if (dist < TJ.MECHA_R + TJ.TEJO_R + 6) {
           // HIT!
           m.active = false;
-          m.inner.setFillStyle(0x330000);
-          m.core.destroy();
-          G.tweens.killTweensOf(m.inner);
+          m.gfx.setAlpha(0.2);
+          G.tweens.killTweensOf(m.gfx);
           const pts = Math.round(100 + (1 - dist / (TJ.MECHA_R * 3)) * 300);
           p.score += pts;
           d.localScores[p.player] = p.score;
@@ -1439,12 +1717,13 @@ function tickTejo(time, delta) {
 
 function spawnTejoParticles(x, y) {
   const colors = [C.mecha, C.mechaG, C.col1, C.white];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 14; i++) {
     const col = colors[Math.floor(Math.random() * colors.length)];
-    const p = G.add.circle(x, y, 4, col);
+    // Square pixel sparks
+    const p = G.add.rectangle(x, y, 4, 4, col);
     p.setDepth(20);
     const angle = Math.random() * Math.PI * 2;
-    const dist = 20 + Math.random() * 50;
+    const dist = 20 + Math.random() * 55;
     G.tweens.add({
       targets: p, x: x + Math.cos(angle) * dist, y: y + Math.sin(angle) * dist,
       alpha: 0, scale: 0.2, duration: 350 + Math.random() * 200,
@@ -1477,39 +1756,41 @@ function initCafe() {
   d.gfxParts = [[], []];
 
   // Arena backgrounds
-  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.35);
-  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.35);
+  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
+  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
   mgObjects.push(bg1, bg2);
 
-  // Labels
-  const l1 = G.add.text(HALF / 2, 65, 'PLAYER 1', { fontFamily: 'monospace', fontSize: '13px', color: C.p1t }).setOrigin(0.5);
-  const l2 = G.add.text(HALF + HALF / 2, 65, 'PLAYER 2', { fontFamily: 'monospace', fontSize: '13px', color: C.p2t }).setOrigin(0.5);
+  // Neon arena frames
+  drawArenaFrame(0);
+  drawArenaFrame(1);
+
+  // Retro Player labels
+  const l1 = retT(HALF / 2, 76, '◄ PLAYER 1 ►', 12, C.p1t, 0.5);
+  const l2 = retT(HALF + HALF / 2, 76, '◄ PLAYER 2 ►', 12, C.p2t, 0.5);
+  l1.setDepth(7); l2.setDepth(7);
   mgObjects.push(l1, l2);
 
   // Per-player graphics
   for (let i = 0; i < 2; i++) {
     const p = d.players[i];
-    // Tray
-    p.trayGfx = G.add.rectangle(p.trayX, CF.TRAY_Y, CF.TRAY_W, CF.TRAY_H, i === 0 ? C.p1d : C.p2d);
-    // Cup outer (pocillo)
-    p.cupGfx = G.add.rectangle(p.trayX, CF.TRAY_Y - CF.CUP_H / 2 - CF.TRAY_H / 2, CF.CUP_W, CF.CUP_H, C.pocillo);
-    p.cupGfx.setStrokeStyle(2, 0xccbbaa);
-    // Liquid inside cup
-    p.liquidGfx = G.add.rectangle(p.trayX, CF.TRAY_Y - 8 - CF.TRAY_H / 2, CF.CUP_W - 6, 20, C.liquid);
-    // Coffee % text
-    p.pctTxt = G.add.text(p.trayX, CF.TRAY_Y + 30, '100%', {
-      fontFamily: 'monospace', fontSize: '18px', color: i === 0 ? C.p1t : C.p2t, fontStyle: 'bold',
-    }).setOrigin(0.5);
-    // Score text
-    p.scoreTxt = G.add.text(p.trayX, CF.TRAY_Y + 52, '0 pts', {
-      fontFamily: 'monospace', fontSize: '14px', color: i === 0 ? C.p1t : C.p2t,
-    }).setOrigin(0.5);
-    // "EQUILIBRIO" hint
-    const hint = G.add.text(p.trayX, H - 30, '← EQUILIBRA →', {
-      fontFamily: 'monospace', fontSize: '11px', color: '#555555',
-    }).setOrigin(0.5);
+    // Tray (wood grain bar)
+    p.trayGfx = G.add.rectangle(p.trayX, CF.TRAY_Y, CF.TRAY_W, CF.TRAY_H, 0x8B4513);
+    p.trayGfx.setStrokeStyle(2, 0x5C2E0A);
+    p.trayGfx.setDepth(8);
 
-    mgObjects.push(p.trayGfx, p.cupGfx, p.liquidGfx, p.pctTxt, p.scoreTxt, hint);
+    // Pixel Mug (pocillo de peltre)
+    p.cupGfx = G.add.graphics();
+    p.cupGfx.setDepth(10);
+    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 24, p.angle);
+
+    // Coffee % text
+    p.pctTxt = retT(p.trayX, CF.TRAY_Y + 30, 'CAFÉ: 100%', 15, i === 0 ? C.p1t : C.p2t, 0.5);
+    // Score text
+    p.scoreTxt = retT(p.trayX, CF.TRAY_Y + 52, '0 pts', 14, i === 0 ? C.p1t : C.p2t, 0.5);
+    // "EQUILIBRIO" hint
+    const hint = retT(p.trayX, H - 26, '◄ JOYSTICK: EQUILIBRA ►', 11, '#666688', 0.5);
+
+    mgObjects.push(p.trayGfx, p.cupGfx, p.pctTxt, p.scoreTxt, hint);
   }
 }
 
@@ -1545,14 +1826,14 @@ function tickCafe(time, delta) {
     if (Math.abs(p.angle) > CF.SPILL_ANGLE && p.coffee > 0) {
       const spillRate = (Math.abs(p.angle) - CF.SPILL_ANGLE) / (CF.MAX_ANGLE - CF.SPILL_ANGLE);
       p.coffee = Math.max(0, p.coffee - spillRate * 0.025);
-      if (Math.random() < 0.12) {
-        // splash particle
+      if (Math.random() < 0.16) {
+        // Square pixel splash drop
         const side = p.angle > 0 ? 1 : -1;
-        const px2 = p.trayX + side * 60;
-        const sp = G.add.circle(px2, CF.TRAY_Y - 5, 4, C.liquid);
+        const px2 = p.trayX + side * 48;
+        const sp = G.add.rectangle(px2, CF.TRAY_Y - 5, 4, 4, 0x3B1A06);
         sp.setDepth(15);
         G.tweens.add({
-          targets: sp, x: px2 + side * 20, y: CF.TRAY_Y + 20, alpha: 0, duration: 300,
+          targets: sp, x: px2 + side * 20, y: CF.TRAY_Y + 24, alpha: 0, duration: 300,
           onComplete: () => sp.destroy(),
         });
         playJingle('fail');
@@ -1566,21 +1847,14 @@ function tickCafe(time, delta) {
     const rad = (p.angle * Math.PI) / 180;
     p.trayGfx.setRotation(rad);
 
-    // Cup follows tray pivot
-    const cupOffX = Math.sin(rad) * (CF.CUP_H / 2 + CF.TRAY_H / 2);
-    const cupOffY = Math.cos(rad) * (CF.CUP_H / 2 + CF.TRAY_H / 2);
-    p.cupGfx.setPosition(p.trayX - cupOffX, CF.TRAY_Y - cupOffY);
-    p.cupGfx.setRotation(rad);
+    // Redraw pixel pocillo with updated angle
+    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 24, p.angle);
 
-    // Liquid stays upright (mostly) but shifts with angle
-    const liquidH = Math.max(2, p.coffee * 22);
-    const liquidY = p.cupGfx.y - CF.CUP_H / 2 + (CF.CUP_H - liquidH) / 2 + liquidH / 2;
-    p.liquidGfx.setPosition(p.cupGfx.x + Math.sin(rad) * 4, liquidY);
-    p.liquidGfx.setSize(CF.CUP_W - 6, liquidH);
-
-    // Text update
+    // Text update with retro gauge
     const pct = Math.round(p.coffee * 100);
-    p.pctTxt.setText(pct + '%');
+    const bars = Math.round(p.coffee * 8);
+    const barStr = '■'.repeat(bars) + '░'.repeat(8 - bars);
+    p.pctTxt.setText('CAFÉ [' + barStr + '] ' + pct + '%');
     p.pctTxt.setColor(pct > 60 ? (i === 0 ? C.p1t : C.p2t) : pct > 30 ? '#FFAA00' : C.rt);
     p.scoreTxt.setText(Math.floor(d.localScores[p.player]) + ' pts');
   }

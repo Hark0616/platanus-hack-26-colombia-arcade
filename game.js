@@ -30,12 +30,12 @@ const C = {
 // DO NOT replace existing keys — they match the physical arcade cabinet wiring.
 const CABINET_KEYS = {
   P1_U: ['w'], P1_D: ['s'], P1_L: ['a'], P1_R: ['d'],
-  P1_1: ['u'], P1_2: ['i'], P1_3: ['o'],
+  P1_1: ['u', ' ', 'j', 'z'], P1_2: ['i'], P1_3: ['o'],
   P1_4: ['j'], P1_5: ['k'], P1_6: ['l'],
   P2_U: ['ArrowUp'], P2_D: ['ArrowDown'], P2_L: ['ArrowLeft'], P2_R: ['ArrowRight'],
-  P2_1: ['r'], P2_2: ['t'], P2_3: ['y'],
+  P2_1: ['r', 'Control', 'Shift', '1'], P2_2: ['t'], P2_3: ['y'],
   P2_4: ['f'], P2_5: ['g'], P2_6: ['h'],
-  START1: ['Enter'], START2: ['2'],
+  START1: ['Enter', '1'], START2: ['2'],
 };
 
 const KEY_MAP = {};
@@ -342,29 +342,31 @@ function createPixelArepa(x, y) {
   return g;
 }
 
-// Procedural pixel-art Carbón (Burnt ember)
+// Procedural pixel-art Carbón (High visibility burning coal ember)
 function createPixelCarbon(x, y) {
   const g = G.add.graphics({ x, y });
+  // Glowing fiery outline so it NEVER blends with dark backgrounds!
   const pattern = [
-    '..KKKKKK....',
-    '.KKRRRRKKK..',
-    'KKRRFFRRKKK.',
-    'KKRFFFFRKKKK',
-    'KKRFFFFRKKKK',
-    'KKKRRRRKKKKK',
-    'KKKKKKRRKKKK',
-    'KKKKKKRRKKKK',
-    'KKKRRRRKKKKK',
-    'KKKKKKKKKKK.',
-    '.KKKKKKKKK..',
-    '..KKKKKK....',
+    '..FFFFFFFF....',
+    '.FRRRRRRRRFF..',
+    'FRRKKKKKKRRFF.',
+    'FRKKYYFFKKKRRFF',
+    'FRKYYYYFFKKRRFF',
+    'FRKKYYFFKKKRRFF',
+    'FRKKKKKKYYKKRFF',
+    'FRKKKKKYYYYKRFF',
+    'FRKKKKKKYYKKRFF',
+    'FRRKKKKKKRRFF.',
+    '.FRRRRRRRRFF..',
+    '..FFFFFFFF....',
   ];
   const palette = {
-    K: 0x1A1A1A, // Pitch black crust
-    R: 0x881100, // Dark red ember
-    F: 0xFF4400, // Fiery glow
+    F: 0xFF5500, // Fiery orange blaze border (high contrast)
+    R: 0xCC1100, // Deep ember red
+    K: 0x1A1A22, // Charred rock core
+    Y: 0xFFFF33, // Glowing hot yellow crack
   };
-  drawPixelMatrix(g, pattern, palette, -12, -12, 2);
+  drawPixelMatrix(g, pattern, palette, -14, -14, 2);
   g.setDepth(5);
   return g;
 }
@@ -413,12 +415,20 @@ function createPixelMecha(x, y) {
   return g;
 }
 
-// Procedural pixel-art Pocillo de Peltre (Colombian enamel mug)
+// Procedural pixel-art Pocillo de Peltre (Colombian enamel mug on wooden tray)
 function createPixelPocillo(g, x, y, tiltAngle) {
   g.clear();
   g.save();
   g.translateCanvas(x, y);
   g.rotateCanvas((tiltAngle * Math.PI) / 180);
+
+  // Tray coaster / base (Mug rests solidly on the tray surface, never floating!)
+  g.fillStyle(0x3D1E07, 1);
+  g.fillRect(-20, 0, 40, 4);
+
+  // Drop shadow below mug
+  g.fillStyle(0x1B0E03, 0.8);
+  g.fillRect(-14, 0, 28, 2);
 
   // Mug Body: White/Cream with classic Blue Enamel Rim
   const pattern = [
@@ -440,41 +450,53 @@ function createPixelPocillo(g, x, y, tiltAngle) {
 
   // Coffee liquid level inside
   g.fillStyle(0x3B1A06, 1);
-  g.fillRect(-14, -10, 20, 14);
+  g.fillRect(-14, -10, 20, 10);
 
   g.restore();
 }
 
-// Procedural pixel-art Chiva Bus (Vista trasera cenital / Arcade top-down rear view)
+// Procedural pixel-art Chiva Bus (Vista superior cenital detallada / Detailed top-down view)
 function createPixelChiva(x, y, isP1) {
   const g = G.add.graphics({ x, y });
-  // Chiva Colombiana vista desde atrás: Canasto de plátanos y maletas en el techo,
-  // ventanillas traseras con escalera central de madera, franjas tricolor y luces de freno.
+  // Chiva vista desde arriba: Trompa con capó tricolor, faros, techo con plátanos, bultos y llanta de repuesto
   const pattern = [
-    '..GGYYRRRRYYGG..', // Equipaje en el techo (plátanos verdes, canastos amarillos, maletas)
-    '.RRRRRRRRRRRRRR.', // Baranda superior de madera
-    'WWWWWWWWWWWWWWWW', // Moldura blanca superior y espejos retrovisores
-    'WWCC..LLLL..CCWW', // Ventanas traseras (vidrio cian) con escalera central de madera (L)
-    'YYYYYYYYYYYYYYYY', // Franja amarilla tradicional
-    'BBBBBBLLLLBBBBBB', // Franja azul (o morada P2) con escalera
-    'RRRRRRLLLLRRRRRR', // Franja roja con escalera
-    'AA............AA', // Luces direccionales ámbar
-    'RRTT.MMMMMM.TTRR', // Luces rojas de freno (R), llantas duales (T), bomper de madera (M)
-    '..TT........TT..', // Huella de llantas traseras
+    '....HH....HH....', // Faros delanteros amarillos (Headlights)
+    '..MMYYYYYYYYMM..', // Espejos retrovisores cian (M) y trompa amarilla
+    '..YYYYYYYYYYYY..', // Capó amarillo tradicional
+    '..BBBBBBBBBBBB..', // Franja azul capó
+    '..RRRRRRRRRRRR..', // Franja roja capó
+    '.WCCCCCCCCCCCCW.', // Parabrisas delantero (vidrio cian reflectivo)
+    'WWWWWWWWWWWWWWWW', // Marco del techo / visera
+    'WLLGGGGLLSSSSLLW', // Techo: Plátanos verdes (G) y bultos de café (S)
+    'WLLGGGGLLSSSSLLW', // Techo: Plátanos y bultos
+    'WLLLLLLLLLLLLLLW', // Tablones de madera del techo
+    'WLLTTTTLLRRRRLLW', // Techo: Llanta de repuesto (T) y canastos rojos (R)
+    'WLLTTTTLLRRRRLLW', // Techo: Llanta de repuesto y canastos
+    'WLLLLLLLLLLLLLLW', // Tablones de madera
+    'WLLSSSSLLGGGGLLW', // Techo: Bultos y plátanos
+    'WLLSSSSLLGGGGLLW', // Techo: Bultos y plátanos
+    'WWWWWWWWWWWWWWWW', // Marco trasero del techo
+    '.YYYYYYYYYYYYYY.', // Carrocería trasera amarilla
+    '.BBBBBBLLBBBBBB.', // Carrocería azul + escalera central trasera
+    '.RRRRRRLLRRRRRR.', // Carrocería roja + escalera trasera
+    '..TT........TT..', // Llantas traseras sobresalientes
+    '..AA........AA..', // Luces traseras
   ];
   const palette = {
-    Y: 0xFFD700, // Amarillo bandera / canastos
-    G: 0x00AA44, // Verde plátanos
-    R: 0xDD1100, // Rojo bandera / luces de freno
-    W: 0xFFFFFF, // Moldura y marco
-    C: 0x00E5FF, // Vidrio cian
-    L: 0x8B4513, // Escalera trasera de madera
-    B: isP1 ? 0x0033AA : 0x8800AA, // Franja azul (P1) o violeta (P2)
-    A: 0xFFAA00, // Luces ámbar
-    M: 0xC47800, // Bomper de madera tradicional
-    T: 0x111111, // Llantas cuadradas de caucho
+    H: 0xFFFF00, // Luces delanteras
+    M: 0x00E5FF, // Espejos retrovisores
+    Y: 0xFFD700, // Amarillo bandera
+    B: isP1 ? 0x0033AA : 0x8800AA, // Azul (P1) / Violeta (P2)
+    R: 0xDD1100, // Rojo bandera / cajas
+    C: 0x00C8EE, // Parabrisas cian
+    W: 0xFFFFFF, // Molduras blancas
+    L: 0x8B4513, // Listones de madera
+    G: 0x00AA44, // Plátanos verdes
+    S: 0xD4A373, // Bultos de café yute
+    T: 0x111111, // Llanta de repuesto / neumáticos
+    A: 0xFF2200, // Luces traseras
   };
-  drawPixelMatrix(g, pattern, palette, -24, -15, 3);
+  drawPixelMatrix(g, pattern, palette, -24, -30, 3);
   g.setDepth(10);
   return g;
 }
@@ -1586,14 +1608,18 @@ function initTejo() {
     d.players[ar].launchY = py;
 
     // Throw counter
-    const cntTxt = retT(px, py + 26, 'TIROS: ' + TJ.MAX_THROWS, 12, ar === 0 ? C.p1t : C.p2t, 0.5);
+    const cntTxt = retT(px, py + 24, 'TIROS: ' + TJ.MAX_THROWS, 12, ar === 0 ? C.p1t : C.p2t, 0.5);
     mgObjects.push(cntTxt);
     d.players[ar].throwTxt = cntTxt;
 
     // Score text
-    const sTxt = retT(px, py + 44, '0 pts', 15, ar === 0 ? C.p1t : C.p2t, 0.5);
+    const sTxt = retT(px, py + 42, '0 pts', 15, ar === 0 ? C.p1t : C.p2t, 0.5);
     mgObjects.push(sTxt);
     d.players[ar].scoreTxt = sTxt;
+
+    // Control hint text
+    const instrTxt = retT(px, py + 60, ar === 0 ? 'DISPARA: [U / ESPACIO]' : 'DISPARA: [R / SHIFT]', 10, '#8888AA', 0.5);
+    mgObjects.push(instrTxt);
 
     // Charge bar bg
     const barBg = G.add.rectangle(px, py - 22, 80, 8, 0x111122);
@@ -1602,6 +1628,11 @@ function initTejo() {
     barFg.setOrigin(0, 0.5);
     mgObjects.push(barBg, barFg);
     d.players[ar].barFg = barFg;
+
+    // Status prompt
+    const statusTxt = retT(px, py - 36, 'MANTÉN BOTÓN 1', 11, '#FFFF00', 0.5);
+    mgObjects.push(statusTxt);
+    d.players[ar].statusTxt = statusTxt;
 
     // Aim line (graphics)
     const aimGfx = G.add.graphics();
@@ -1630,10 +1661,13 @@ function tickTejo(time, delta) {
         p.charging = true;
         p.charge = Math.min(1, p.charge + dt * (1000 / TJ.CHARGE_TIME));
         p.barFg.setSize(p.charge * 80, 8);
+        if (p.statusTxt) p.statusTxt.setText('¡SUELTA PARA LANZAR!').setColor('#00FF41');
       } else if (p.charging) {
-        // Release → launch
+        // Release → launch (guarantee minimum power so it flies nicely)
         p.charging = false;
-        const speed = TJ.MIN_SPEED + p.charge * (TJ.MAX_SPEED - TJ.MIN_SPEED);
+        if (p.statusTxt) p.statusTxt.setText('MANTÉN BOTÓN 1').setColor('#FFFF00');
+        const effectiveCharge = Math.max(0.25, p.charge);
+        const speed = TJ.MIN_SPEED + effectiveCharge * (TJ.MAX_SPEED - TJ.MIN_SPEED);
         const rad = (p.angle * Math.PI) / 180;
         p.vx = Math.cos(rad) * speed;
         p.vy = Math.sin(rad) * speed;
@@ -1715,7 +1749,10 @@ function tickTejo(time, delta) {
     }
 
     // No more throws: clear aim
-    if (p.tejos <= 0 && !p.flying && p.aimGfx) p.aimGfx.clear();
+    if (p.tejos <= 0 && !p.flying && p.aimGfx) {
+      p.aimGfx.clear();
+      if (p.statusTxt) p.statusTxt.setText('SIN TIROS').setColor('#666688');
+    }
   }
 }
 
@@ -1741,9 +1778,8 @@ function spawnTejoParticles(x, y) {
 // ═══════════════════════════════════════════════════════════════════════════
 const CF = {
   TRAY_W: 110, TRAY_H: 8,
-  CUP_W: 30, CUP_H: 36,
-  MAX_ANGLE: 32, // degrees
-  SPILL_ANGLE: 26,
+  MAX_ANGLE: 28, // degrees
+  SPILL_ANGLE: 15, // Starts spilling past 15°
   TRAY_Y: H - 130,
 };
 
@@ -1754,8 +1790,8 @@ function initCafe() {
     { arena: 1, player: 'p2', col: C.p2, angle: 0, angVel: 0, coffee: 1.0, trayX: HALF + HALF / 2 },
   ];
   d.oscillators = [
-    { phase: 0, freq: 0.9, amp: 0.45 },
-    { phase: Math.PI * 0.7, freq: 1.1, amp: 0.45 },
+    { phase: 0, freq: 1.4, amp: 0.8 },
+    { phase: Math.PI * 0.7, freq: 1.6, amp: 0.8 },
   ];
   d.gfxParts = [[], []];
 
@@ -1782,17 +1818,17 @@ function initCafe() {
     p.trayGfx.setStrokeStyle(2, 0x5C2E0A);
     p.trayGfx.setDepth(8);
 
-    // Pixel Mug (pocillo de peltre)
+    // Pixel Mug (pocillo de peltre resting firmly on tray)
     p.cupGfx = G.add.graphics();
     p.cupGfx.setDepth(10);
-    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 24, p.angle);
+    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 4, p.angle);
 
     // Coffee % text
     p.pctTxt = retT(p.trayX, CF.TRAY_Y + 30, 'CAFÉ: 100%', 15, i === 0 ? C.p1t : C.p2t, 0.5);
     // Score text
     p.scoreTxt = retT(p.trayX, CF.TRAY_Y + 52, '0 pts', 14, i === 0 ? C.p1t : C.p2t, 0.5);
     // "EQUILIBRIO" hint
-    const hint = retT(p.trayX, H - 26, '◄ JOYSTICK: EQUILIBRA ►', 11, '#666688', 0.5);
+    const hint = retT(p.trayX, H - 26, '◄ JOYSTICK: CONTRARRESTA ►', 11, '#8888AA', 0.5);
 
     mgObjects.push(p.trayGfx, p.cupGfx, p.pctTxt, p.scoreTxt, hint);
   }
@@ -1807,37 +1843,39 @@ function tickCafe(time, delta) {
     const p = d.players[i];
     const osc = d.oscillators[i];
 
-    // Oscillator drives the tray
-    osc.phase += osc.freq * dt * (1 + elapsed * 0.07);
-    const externalForce = Math.sin(osc.phase) * osc.amp * (1 + elapsed * 0.05);
+    // Oscillator drives the tray with active turbulent waves
+    osc.phase += osc.freq * dt * (1.2 + elapsed * 0.12);
+    const wave1 = Math.sin(osc.phase) * (1.3 + elapsed * 0.15);
+    const wave2 = Math.sin(osc.phase * 2.7) * 0.6;
+    const externalForce = wave1 + wave2;
 
     // Player counter-force via joystick
     const isP1 = p.player === 'p1';
     const lBtn = isP1 ? 'P1_L' : 'P2_L';
     const rBtn = isP1 ? 'P1_R' : 'P2_R';
     let playerForce = 0;
-    if (held(lBtn)) playerForce -= 1.4;
-    if (held(rBtn)) playerForce += 1.4;
+    if (held(lBtn)) playerForce -= 2.4;
+    if (held(rBtn)) playerForce += 2.4;
 
     // Angular physics
     const totalForce = externalForce + playerForce;
-    p.angVel += totalForce * 100 * dt;
+    p.angVel += totalForce * 110 * dt;
     p.angVel *= 0.88; // damping
     p.angle += p.angVel * dt;
     p.angle = Math.max(-CF.MAX_ANGLE, Math.min(CF.MAX_ANGLE, p.angle));
 
-    // Spill
+    // Spill (active when exceeding SPILL_ANGLE)
     if (Math.abs(p.angle) > CF.SPILL_ANGLE && p.coffee > 0) {
       const spillRate = (Math.abs(p.angle) - CF.SPILL_ANGLE) / (CF.MAX_ANGLE - CF.SPILL_ANGLE);
-      p.coffee = Math.max(0, p.coffee - spillRate * 0.025);
-      if (Math.random() < 0.16) {
-        // Square pixel splash drop
+      p.coffee = Math.max(0, p.coffee - spillRate * 0.035);
+      if (Math.random() < 0.22) {
+        // Square pixel splash drops
         const side = p.angle > 0 ? 1 : -1;
-        const px2 = p.trayX + side * 48;
+        const px2 = p.trayX + side * 44;
         const sp = G.add.rectangle(px2, CF.TRAY_Y - 5, 4, 4, 0x3B1A06);
         sp.setDepth(15);
         G.tweens.add({
-          targets: sp, x: px2 + side * 20, y: CF.TRAY_Y + 24, alpha: 0, duration: 300,
+          targets: sp, x: px2 + side * 24, y: CF.TRAY_Y + 24, alpha: 0, duration: 280,
           onComplete: () => sp.destroy(),
         });
         playJingle('fail');
@@ -1851,8 +1889,8 @@ function tickCafe(time, delta) {
     const rad = (p.angle * Math.PI) / 180;
     p.trayGfx.setRotation(rad);
 
-    // Redraw pixel pocillo with updated angle
-    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 24, p.angle);
+    // Redraw pixel pocillo attached firmly to tray
+    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 4, p.angle);
 
     // Text update with retro gauge
     const pct = Math.round(p.coffee * 100);

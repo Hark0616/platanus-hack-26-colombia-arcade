@@ -22,8 +22,8 @@ const C = {
   ch1:     0xFF2200, ch2:     0xFFDD00, ch3:     0x0044FF, ch4: 0x00AA44,
   // Tejo
   tejo:    0x8B6355, mecha:   0xFF3300, mechaG:  0xFFAA00,
-  // Café
-  cafe:    0x5C2E0A, pocillo: 0xF0EAD6, liquid:  0x3B1A06,
+  // Cumbia
+  dance1:  0x00E5FF, dance2:  0x9D4EDD,
 };
 
 // ─── CONTROLES ─────────────────────────────────────────────────────────────
@@ -40,11 +40,14 @@ const CABINET_KEYS = {
 
 const KEY_MAP = {};
 for (const [code, keys] of Object.entries(CABINET_KEYS)) {
-  for (const k of keys) KEY_MAP[k.length === 1 ? k.toLowerCase() : k] = code;
+  for (const k of keys) {
+    const key = k.length === 1 ? k.toLowerCase() : k;
+    (KEY_MAP[key] || (KEY_MAP[key] = [])).push(code);
+  }
 }
 
 // ─── MICROJUEGOS DISPONIBLES ───────────────────────────────────────────────
-const MG_POOL = ['arepa', 'chiva', 'tejo', 'cafe'];
+const MG_POOL = ['arepa', 'chiva', 'tejo', 'cumbia'];
 
 // ─── ESTADO GLOBAL ─────────────────────────────────────────────────────────
 let G; // scene ref
@@ -57,6 +60,7 @@ function mkState() {
     totalRounds: 4,
     queue: shuffle(MG_POOL.slice()),
     scores: { p1: 0, p2: 0 },
+    crowns: { p1: 0, p2: 0 },
     roundResult: null, // {p1, p2, winner}
     currentMg: null,
     highScores: [],
@@ -88,11 +92,11 @@ function create() {
   setupInput(G);
   buildUI(G);
   addCRTEffect(G);
-
+  showIntro();
   loadScores().then(s => {
     ST.highScores = s;
-    showIntro();
-  }).catch(() => { ST.highScores = []; showIntro(); });
+    if (ST.phase === 'intro') showIntro();
+  }).catch(() => {});
 }
 
 function update(time, delta) {
@@ -121,22 +125,33 @@ function update(time, delta) {
 function setupInput(scene) {
   const onDown = (e) => {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    const code = KEY_MAP[k];
-    if (!code) return;
-    if (!ST.input.held[code]) ST.input.pressed[code] = true;
-    ST.input.held[code] = true;
+    const codes = KEY_MAP[k];
+    if (!codes) return;
+    e.preventDefault();
+    for (const code of codes) {
+      if (!ST.input.held[code]) ST.input.pressed[code] = true;
+      ST.input.held[code] = true;
+    }
   };
   const onUp = (e) => {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    const code = KEY_MAP[k];
-    if (!code) return;
-    ST.input.held[code] = false;
+    const codes = KEY_MAP[k];
+    if (!codes) return;
+    e.preventDefault();
+    for (const code of codes) ST.input.held[code] = false;
+  };
+  const clear = () => {
+    if (!ST || !ST.input) return;
+    ST.input.held = Object.create(null);
+    ST.input.pressed = Object.create(null);
   };
   window.addEventListener('keydown', onDown);
   window.addEventListener('keyup', onUp);
+  window.addEventListener('blur', clear);
   scene.events.once('shutdown', () => {
     window.removeEventListener('keydown', onDown);
     window.removeEventListener('keyup', onUp);
+    window.removeEventListener('blur', clear);
   });
 }
 
@@ -223,6 +238,12 @@ function playJingle(type) {
     tone(330, 0.08, 'square', 0.2, 0);
     tone(440, 0.08, 'square', 0.2, 0.09);
     tone(550, 0.15, 'square', 0.25, 0.18);
+  } else if (type === 'rush') {
+    tone(523, 0.07, 'square', 0.14, 0);
+    tone(659, 0.07, 'square', 0.14, 0.07);
+    tone(880, 0.14, 'square', 0.18, 0.14);
+  } else if (type === 'near') {
+    sweepTone(700, 1300, 0.08, 'square', 0.1);
   }
 }
 
@@ -237,6 +258,49 @@ function shuffle(arr) {
 
 function shake(frames) {
   ST.shakeFrames = frames || 8;
+}
+
+function pop(x, y, text, color) {
+  const t = retT(x, y, text, 2, color || '#FFFFFF', 0.5).setDepth(45);
+  G.tweens.add({ targets: t, y: -28, alpha: 0, duration: 520, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
+}
+
+function arenaFlash(player, color) {
+  const x = player === 'p1' ? HALF / 2 : HALF + HALF / 2;
+  const f = rect(x, H / 2 + 28, HALF - 8, H - 64, color, 0.18).setDepth(30);
+  G.tweens.add({ targets: f, alpha: 0, duration: 180, onComplete: () => f.destroy() });
+}
+
+function updateComboHud() {
+  if (!UI.hudCombo1 || !mgData.streak) return;
+  const label = p => mgData.streak[p] >= 3 ? 'CANDELA x' + Math.min(3, 1 + Math.floor(mgData.streak[p] / 3)) : 'RACHA ' + mgData.streak[p];
+  UI.hudCombo1.setText(label('p1'));
+  UI.hudCombo2.setText(label('p2'));
+}
+
+function scoreAction(player, base, x, y, label) {
+  const streak = ++mgData.streak[player];
+  mgData.maxStreak[player] = Math.max(mgData.maxStreak[player], streak);
+  const mult = streak >= 6 ? 3 : streak >= 3 ? 2 : 1;
+  const points = Math.round(base * mult * (mgData.rush ? 1.5 : 1));
+  mgData.localScores[player] += points;
+  updateComboHud();
+  pop(x, y, (label ? label + ' ' : '') + '+' + points + (mult > 1 ? ' x' + mult : ''), player === 'p1' ? C.p1t : C.p2t);
+  tone(440 + Math.min(streak, 8) * 45, 0.05, 'square', 0.05);
+  return points;
+}
+
+function breakCombo(player, x, y, penalty, label) {
+  mgData.streak[player] = 0;
+  mgData.localScores[player] = Math.max(0, mgData.localScores[player] - (penalty || 0));
+  updateComboHud();
+  arenaFlash(player, C.red);
+  if (label) pop(x, y, label, C.rt);
+}
+
+function reputation(mg, score) {
+  const scale = { arepa: 4, chiva: 5, tejo: 0.5, cumbia: 0.3 }[mg] || 1;
+  return Math.min(1000, Math.max(0, Math.round(score * scale)));
 }
 
 // ─── 8-BIT ARCADE PIXEL FONT ENGINE ─────────────────────────────────────────
@@ -299,7 +363,8 @@ function retT(x, y, s, sizeOrScale, colHex, origin) {
     const startX = this.textX - totalW * ox;
     const startY = this.textY - totalH * oy;
 
-    const numColor = typeof this.currentColor === 'number' ? this.currentColor : parseInt(String(this.currentColor).replace('#', '0x'), 16) || 0xFFFFFF;
+    const parsedColor = parseInt(String(this.currentColor).replace('#', '0x'), 16);
+    const numColor = typeof this.currentColor === 'number' ? this.currentColor : Number.isNaN(parsedColor) ? 0xFFFFFF : parsedColor;
 
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li];
@@ -535,46 +600,6 @@ function createPixelMecha(x, y) {
   return g;
 }
 
-// Procedural pixel-art Pocillo de Peltre (Colombian enamel mug on wooden tray)
-function createPixelPocillo(g, x, y, tiltAngle) {
-  g.clear();
-  g.save();
-  g.translateCanvas(x, y);
-  g.rotateCanvas((tiltAngle * Math.PI) / 180);
-
-  // Tray coaster / base (Mug rests solidly on the tray surface, never floating!)
-  g.fillStyle(0x3D1E07, 1);
-  g.fillRect(-20, 0, 40, 4);
-
-  // Drop shadow below mug
-  g.fillStyle(0x1B0E03, 0.8);
-  g.fillRect(-14, 0, 28, 2);
-
-  // Mug Body: White/Cream with classic Blue Enamel Rim
-  const pattern = [
-    'BBBBBBBBBBBB....',
-    'WWWWWWWWWWWW.BB.',
-    'WWWWWWWWWWWW.WW.',
-    'WWWWWWWWWWWW.WW.',
-    'WWWWWWWWWWWW.BB.',
-    'WWWWWWWWWWWW....',
-    'WWWWWWWWWWWW....',
-    'WWWWWWWWWWWW....',
-    'BBBBBBBBBBBB....',
-  ];
-  const palette = {
-    B: 0x0038A8, // Blue enamel rim and handle
-    W: 0xF0EAD6, // Cream mug body
-  };
-  drawPixelMatrix(g, pattern, palette, -16, -18, 2);
-
-  // Coffee liquid level inside
-  g.fillStyle(0x3B1A06, 1);
-  g.fillRect(-14, -10, 20, 10);
-
-  g.restore();
-}
-
 // Procedural pixel-art Chiva Bus (Vista superior cenital detallada / Detailed top-down view)
 function createPixelChiva(x, y, isP1) {
   const g = G.add.graphics({ x, y });
@@ -724,9 +749,10 @@ function buildUI(scene) {
   // Main 8-bit title
   UI.introTitle = retT(W/2, 150, 'PARCHE\nPARTY', 6, C.p1t, 0.5);
   UI.intro.add(UI.introTitle);
+  UI.intro.add(retT(W/2, 232, '— EN CANDELA —', 2, C.neont, 0.5));
 
   // Subtitle
-  UI.introPulse = retT(W/2, 275, '— EL ARCADE COLOMBIANO —', 2, C.p2t, 0.5);
+  UI.introPulse = retT(W/2, 275, '4 RETOS · 2 PANAS · 1 REY DEL PARCHE', 2, C.p2t, 0.5);
   UI.intro.add(UI.introPulse);
 
   // Separator line
@@ -746,7 +772,7 @@ function buildUI(scene) {
   UI.intro.add(UI.introBtn);
 
   // Controls hint
-  UI.intro.add(retT(W/2, 505, 'P1: ENTER    ·    P2: TECLA 2', 2, '#555577', 0.5));
+  UI.intro.add(retT(W/2, 505, 'START O BOTÓN 1 PARA ENTRARLE', 2, '#555577', 0.5));
 
   // Bottom border
   UI.intro.add(rect(W/2, H - 16, W, 2, C.p2, 0.4));
@@ -786,11 +812,15 @@ function buildUI(scene) {
   UI.hud.add(retT(80, 10, '1UP', 2, C.neont, { x: 0.5, y: 0 }));
   UI.hudP1 = retT(80, 28, '000000', 3, C.p1t, { x: 0.5, y: 0 });
   UI.hud.add(UI.hudP1);
+  UI.hudCombo1 = retT(205, 13, 'RACHA 0', 1, C.p1t, 0.5); UI.hud.add(UI.hudCombo1);
+  UI.hudCrown1 = retT(205, 36, '★ 0', 2, C.p1t, 0.5); UI.hud.add(UI.hudCrown1);
 
   // 2UP label + score
   UI.hud.add(retT(W - 80, 10, '2UP', 2, C.neont, { x: 0.5, y: 0 }));
   UI.hudP2 = retT(W - 80, 28, '000000', 3, C.p2t, { x: 0.5, y: 0 });
   UI.hud.add(UI.hudP2);
+  UI.hudCombo2 = retT(W - 205, 13, 'RACHA 0', 1, C.p2t, 0.5); UI.hud.add(UI.hudCombo2);
+  UI.hudCrown2 = retT(W - 205, 36, '★ 0', 2, C.p2t, 0.5); UI.hud.add(UI.hudCrown2);
 
   // Round indicator (center top)
   UI.hudRound = retT(W/2, 10, 'RONDA 1/4', 2, '#777799', { x: 0.5, y: 0 });
@@ -808,6 +838,8 @@ function buildUI(scene) {
   UI.hud.add(rect(W/2, H - 22, 80, 28, C.div, 0.5));
   UI.hudTimer = retT(W/2, H - 22, '10', 3, C.wt, 0.5);
   UI.hud.add(UI.hudTimer);
+  UI.hudRush = retT(W/2, 76, '', 3, C.p1t, 0.5).setDepth(25);
+  UI.hud.add(UI.hudRush);
 
   // ── RESULT SCREEN
   UI.result = scene.add.container(0, 0).setDepth(35).setVisible(false);
@@ -870,7 +902,7 @@ function buildUI(scene) {
   UI.finalBoard = retT(W/2, 400, '', 2, '#BBBBCC', 0.5);
   UI.final.add(UI.finalBoard);
 
-  UI.finalBtn = retT(W/2, H - 30, '►  PRESIONA START PARA JUGAR DE NUEVO  ◄', 2, '#666688', 0.5);
+  UI.finalBtn = retT(W/2, H - 30, '►  BOTÓN 1: REVANCHA  ·  START: INICIO  ◄', 2, '#666688', 0.5);
   UI.final.add(UI.finalBtn);
 
   // ── NAME ENTRY (letras para highscore)
@@ -906,7 +938,7 @@ function buildUI(scene) {
       UI.nameGrid.push({ bg, lb, row, col, val, lgrid: LGRID });
     }
   }
-  UI.nameHint = retT(W/2, H - 35, 'MOVER JOYSTICK · BOTÓN 1 PARA CONFIRMAR', 1, '#666688', 0.5);
+  UI.nameHint = retT(W/2, H - 35, 'JOYSTICK: MOVER · BOTÓN 1: CONFIRMAR · START: CANCELAR', 1, '#666688', 0.5);
   UI.name.add(UI.nameHint);
 }
 
@@ -914,6 +946,8 @@ function refreshHud() {
   UI.hudP1.setText(String(ST.scores.p1).padStart(6, '0'));
   UI.hudP2.setText(String(ST.scores.p2).padStart(6, '0'));
   UI.hudRound.setText('RONDA ' + ST.round + '/' + ST.totalRounds);
+  UI.hudCrown1.setText('★ ' + ST.crowns.p1);
+  UI.hudCrown2.setText('★ ' + ST.crowns.p2);
 }
 
 // ─── INTRO ─────────────────────────────────────────────────────────────────
@@ -940,6 +974,7 @@ function showIntro() {
 
   // pulse the button text
   G.tweens.killTweensOf(UI.introBtn);
+  UI.introBtn.setAlpha(1);
   G.tweens.add({ targets: UI.introBtn, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
   introData = { ready: false };
@@ -947,7 +982,7 @@ function showIntro() {
 
 function handleIntro(time) {
   if (consume(['START1', 'START2', 'P1_1', 'P2_1'])) {
-    G.tweens.killAll();
+    G.tweens.killTweensOf(UI.introBtn);
     playJingle('start');
     startGame();
   }
@@ -957,6 +992,7 @@ function handleIntro(time) {
 function startGame() {
   ST.round = 0;
   ST.scores = { p1: 0, p2: 0 };
+  ST.crowns = { p1: 0, p2: 0 };
   ST.queue = shuffle(MG_POOL.slice());
   nextRound();
 }
@@ -976,13 +1012,13 @@ const MG_NAMES = {
   arepa: 'AREPA\nVOLADORA',
   chiva: 'CHIVA\nLOCA',
   tejo:  'TEJO\nTURBO',
-  cafe:  'CAFÉ EN\nEQUILIBRIO',
+  cumbia: 'CUMBIA\nCANDELA',
 };
 const MG_HINTS = {
   arepa: 'ATRAPA LAS AREPAS DORADAS\n¡EVITA LOS CARBONES!',
-  chiva: 'ESQUIVA LOS OBSTÁCULOS\nCAMBIA DE CARRIL CON [← / →]',
-  tejo:  'APUNTA CON [← / →] · MANTÉN BOTÓN 1\n¡SUELTA PARA LANZAR AL BOCÍN!',
-  cafe:  'EQUILIBRA LA BANDEJA CON [← / →]\n¡NO BOTES EL POCILLO DE CAFÉ!',
+  chiva: 'ESQUIVA LOS OBSTÁCULOS\nMUEVE EL JOYSTICK A LOS LADOS',
+  tejo:  'APUNTA CON EL JOYSTICK · CARGA BOTÓN 1\n¡SUELTA PARA LANZAR AL BOCÍN!',
+  cumbia: 'SIGUE LAS FLECHAS CON EL JOYSTICK\n¡PÍSALAS AL CRUZAR LA LÍNEA!',
 };
 
 let transData = {};
@@ -1004,7 +1040,8 @@ function showTransition(mg) {
   G.tweens.add({ targets: UI.transName, alpha: 1, duration: 400 });
 
   playJingle('start');
-  transData = { startTime: G.time.now, duration: 2800 };
+  consumeAll();
+  transData = { startTime: G.time.now, duration: 1600 };
 }
 
 function handleTransition(time) {
@@ -1021,7 +1058,7 @@ function handleTransition(time) {
 let mgData = {}; // minigame-specific data
 let mgObjects = []; // phaser objects to destroy after
 
-const MG_DURATION = 10000; // 10 seconds per minigame
+const MG_DURATION = 10500;
 
 function startMinigame(mg) {
   ST.phase = 'playing';
@@ -1035,19 +1072,44 @@ function startMinigame(mg) {
     startTime: G.time.now,
     duration: MG_DURATION,
     localScores: { p1: 0, p2: 0 },
+    streak: { p1: 0, p2: 0 },
+    maxStreak: { p1: 0, p2: 0 },
+    rush: false, lastTimer: -1, beat: 0, nextBeat: G.time.now,
     done: false,
   };
+  UI.hudRush.setText('').setAlpha(0);
+  updateComboHud();
+  consumeAll();
 
   if (mg === 'arepa')  initArepa();
   else if (mg === 'chiva') initChiva();
   else if (mg === 'tejo')  initTejo();
-  else if (mg === 'cafe')  initCafe();
+  else if (mg === 'cumbia') initCumbia();
 }
 
 function handlePlaying(time, delta) {
+  delta = Math.min(delta, 50);
   const elapsed = time - mgData.startTime;
   const remaining = Math.max(0, (mgData.duration - elapsed) / 1000);
-  UI.hudTimer.setText(pad2(remaining));
+  const timer = Math.ceil(remaining);
+  if (timer !== mgData.lastTimer) {
+    mgData.lastTimer = timer;
+    UI.hudTimer.setText(String(timer).padStart(2, '0')).setColor(timer <= 3 ? C.rt : C.wt);
+  }
+
+  if (remaining <= 3 && !mgData.rush) {
+    mgData.rush = true;
+    UI.hudRush.setText('¡SE PRENDIÓ!').setAlpha(1).setScale(0.7);
+    G.tweens.add({ targets: UI.hudRush, scale: 1.15, alpha: 0, duration: 700, yoyo: true });
+    playJingle('rush');
+  }
+
+  if (time >= mgData.nextBeat) {
+    mgData.beat++;
+    const hot = mgData.rush;
+    tone(mgData.beat % 4 ? (hot ? 220 : 165) : 110, 0.035, mgData.beat % 2 ? 'square' : 'triangle', 0.018);
+    mgData.nextBeat = time + (hot ? 125 : 250);
+  }
 
   // tick sound in last 3 seconds
   if (remaining <= 3 && remaining > 0) {
@@ -1059,7 +1121,7 @@ function handlePlaying(time, delta) {
     if (mgData.mg === 'arepa')  tickArepa(time, delta);
     else if (mgData.mg === 'chiva') tickChiva(time, delta);
     else if (mgData.mg === 'tejo')  tickTejo(time, delta);
-    else if (mgData.mg === 'cafe')  tickCafe(time, delta);
+    else if (mgData.mg === 'cumbia') tickCumbia(time, delta);
   }
 
   if (elapsed >= mgData.duration && !mgData.done) {
@@ -1074,21 +1136,28 @@ function finishMinigame() {
 
   const ls = mgData.localScores;
   const winner = ls.p1 > ls.p2 ? 'p1' : ls.p2 > ls.p1 ? 'p2' : 'draw';
-  const bonus = 500;
+  const bonus = 250;
   let p1bonus = 0, p2bonus = 0;
-  if (winner === 'p1') { p1bonus = bonus; shake(10); }
-  else if (winner === 'p2') { p2bonus = bonus; shake(10); }
-  else { p1bonus = 200; p2bonus = 200; }
+  if (winner === 'p1') { p1bonus = bonus; ST.crowns.p1++; }
+  else if (winner === 'p2') { p2bonus = bonus; ST.crowns.p2++; }
+  else { p1bonus = 100; p2bonus = 100; }
 
-  ST.scores.p1 += p1bonus;
-  ST.scores.p2 += p2bonus;
-  ST.roundResult = { ls, winner, p1bonus, p2bonus };
+  const p1rep = reputation(mgData.mg, ls.p1);
+  const p2rep = reputation(mgData.mg, ls.p2);
+  ST.scores.p1 += p1rep + p1bonus;
+  ST.scores.p2 += p2rep + p2bonus;
+  ST.roundResult = { ls, winner, p1bonus, p2bonus, p1rep, p2rep, maxStreak: mgData.maxStreak };
 
   showResult();
 }
 
 function destroyMgObjects() {
-  for (const o of mgObjects) { try { if (o && o.destroy) o.destroy(); } catch (_) {} }
+  for (const o of mgObjects) {
+    try {
+      if (o) G.tweens.killTweensOf(o);
+      if (o && o.destroy) o.destroy();
+    } catch (_) {}
+  }
   mgObjects = [];
 }
 
@@ -1098,17 +1167,18 @@ let resultData = {};
 function showResult() {
   ST.phase = 'result';
   UI.result.setVisible(true);
+  consumeAll();
 
   const rr = ST.roundResult;
   const mg = MG_NAMES[mgData.mg] || mgData.mg;
   UI.resultTitle.setText(mg.replace('\n', ' '));
 
   if (rr.winner === 'p1') {
-    UI.resultWinner.setText('¡PLAYER 1 GANA!').setColor(C.p1t);
+    UI.resultWinner.setText('¡P1 GANA LA ESTRELLA!').setColor(C.p1t);
     playJingle('win');
     spawnConfetti(40);
   } else if (rr.winner === 'p2') {
-    UI.resultWinner.setText('¡PLAYER 2 GANA!').setColor(C.p2t);
+    UI.resultWinner.setText('¡P2 GANA LA ESTRELLA!').setColor(C.p2t);
     playJingle('win');
     spawnConfetti(40);
   } else {
@@ -1117,20 +1187,22 @@ function showResult() {
   }
 
   UI.resultPts.setText(
-    'P1  +' + rr.p1bonus + '     P2  +' + rr.p2bonus
+    'RONDA  P1 ' + Math.floor(rr.ls.p1) + '  —  ' + Math.floor(rr.ls.p2) + ' P2'
   );
   UI.resultTotal.setText(
-    'TOTAL →  P1 ' + ST.scores.p1 + '   P2 ' + ST.scores.p2
+    'REPUTACIÓN  P1 ' + ST.scores.p1 + '   P2 ' + ST.scores.p2 +
+    '\nRACHA MÁXIMA  P1 ' + rr.maxStreak.p1 + '   ·   P2 ' + rr.maxStreak.p2
   );
 
   const isLast = ST.round >= ST.totalRounds;
-  UI.resultNext.setText(isLast ? 'ÚLTIMA RONDA — ¡RESULTADOS FINALES!' : 'SIGUIENTE RONDA...');
+  UI.resultNext.setText(isLast ? '¡A VER QUIÉN MANDA EN EL PARCHE!' : 'SIGUIENTE RETO...');
 
-  resultData = { startTime: G.time.now, duration: 3200 };
+  resultData = { startTime: G.time.now, duration: 1500 };
 }
 
 function handleResult(time) {
-  if (time - resultData.startTime >= resultData.duration) {
+  if (time - resultData.startTime >= resultData.duration ||
+      (time - resultData.startTime > 450 && consume(['P1_1', 'P2_1', 'START1', 'START2']))) {
     UI.result.setVisible(false);
     nextRound();
   }
@@ -1144,8 +1216,8 @@ function showFinal() {
   UI.final.setVisible(true);
 
   const p1 = ST.scores.p1, p2 = ST.scores.p2;
-  const isDraw = p1 === p2;
-  const winnerKey = p1 > p2 ? 'p1' : p2 > p1 ? 'p2' : 'draw';
+  const c1 = ST.crowns.p1, c2 = ST.crowns.p2;
+  const winnerKey = c1 > c2 ? 'p1' : c2 > c1 ? 'p2' : p1 > p2 ? 'p1' : p2 > p1 ? 'p2' : 'draw';
 
   if (winnerKey === 'p1') {
     UI.finalWinner.setText('¡P1 ES EL\nREY DEL PARCHE!').setColor(C.p1t);
@@ -1155,11 +1227,10 @@ function showFinal() {
     UI.finalWinner.setText('¡EMPATE\nEPICO!').setColor('#FFFFFF');
   }
 
-  UI.finalSub.setText('PUNTAJE FINAL');
+  UI.finalSub.setText(c1 === c2 ? 'EMPATE EN ESTRELLAS · DESEMPATA REPUTACIÓN' : 'REY DEL PARCHE POR ESTRELLAS');
   UI.finalScores.setText(
-    'P1  ' + String(p1).padStart(4, ' ') +
-    '   vs   ' +
-    String(p2).padStart(4, ' ') + '  P2'
+    'P1  ★' + c1 + '  ' + String(p1).padStart(4, ' ') +
+    '   vs   ' + String(p2).padStart(4, ' ') + '  ★' + c2 + '  P2'
   );
 
   // show highscores
@@ -1174,41 +1245,115 @@ function showFinal() {
   spawnConfetti(80);
   shake(15);
 
-  // Save score for winner
-  const winScore = Math.max(p1, p2);
-  const winName = winnerKey === 'p1' ? 'P1' : winnerKey === 'p2' ? 'P2' : 'EMP';
-  const entry = { name: winName, score: winScore, date: new Date().toISOString().slice(0,10) };
-  saveScore(entry).then(s => {
-    ST.highScores = s;
-    const lines2 = ST.highScores.slice(0, 5).map((e, i) =>
-      (i+1) + '. ' + e.name.padEnd(3,' ') + '  ' + String(e.score).padStart(4,' ')
-    );
-    UI.finalBoard.setText('TOP SCORES\n' + lines2.join('\n'));
-  }).catch(() => {});
+  const winScore = winnerKey === 'p1' ? p1 : winnerKey === 'p2' ? p2 : Math.max(p1, p2);
+  const cutoff = ST.highScores[4] ? ST.highScores[4].score : -1;
+  const qualifies = winnerKey !== 'draw' && winScore > cutoff;
 
   G.tweens.killTweensOf(UI.finalBtn);
+  UI.finalBtn.setText(qualifies ? 'BOTÓN 1: REVANCHA · BOTÓN 2: FIRMAR · START: INICIO' : '► BOTÓN 1: REVANCHA · START: INICIO ◄');
+  UI.finalBtn.setAlpha(1);
   G.tweens.add({ targets: UI.finalBtn, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
-  finalData = { startTime: G.time.now };
+  consumeAll();
+  finalData = { startTime: G.time.now, nextConfetti: G.time.now + 2000, winnerKey, winScore, qualifies };
 }
 
 function handleFinal(time) {
   // extra confetti bursts
-  if ((time - finalData.startTime) % 2000 < 50) {
+  if (time >= finalData.nextConfetti) {
     spawnConfetti(20);
+    finalData.nextConfetti = time + 2000;
   }
-  if (consume(['START1', 'START2', 'P1_1', 'P2_1'])) {
-    G.tweens.killAll();
+  if (finalData.qualifies && consume(['P1_2', 'P2_2'])) {
+    beginNameEntry();
+  } else if (consume(['P1_1', 'P2_1'])) {
+    G.tweens.killTweensOf(UI.finalBtn);
+    UI.final.setVisible(false);
+    startGame();
+  } else if (consume(['START1', 'START2'])) {
+    G.tweens.killTweensOf(UI.finalBtn);
     UI.final.setVisible(false);
     ST = mkState();
-    loadScores().then(s => { ST.highScores = s; showIntro(); }).catch(() => showIntro());
+    showIntro();
+    loadScores().then(s => { ST.highScores = s; if (ST.phase === 'intro') showIntro(); }).catch(() => {});
   }
 }
 
-// ─── NAME ENTRY (not needed for auto-save, but keeping minimal) ─────────────
+function beginNameEntry() {
+  ST.phase = 'name';
+  UI.final.setVisible(false);
+  UI.name.setVisible(true);
+  G.tweens.killTweensOf(UI.finalBtn);
+  ST.nameEntry = { letters: [], row: 0, col: 0, who: finalData.winnerKey, cooldown: 0, saving: false };
+  UI.nameWho.setText((finalData.winnerKey === 'p1' ? 'PLAYER 1' : 'PLAYER 2') + ' · ' + finalData.winScore + ' PUNTOS');
+  consumeAll();
+  updateNameEntry();
+}
+
+function updateNameEntry() {
+  const n = ST.nameEntry;
+  UI.nameVal.setText((n.letters.concat(['_','_','_']).slice(0, 3)).join(' '));
+  for (const cell of UI.nameGrid) {
+    const selected = cell.row === n.row && cell.col === n.col;
+    cell.bg.setFillStyle(selected ? (n.who === 'p1' ? C.p1 : C.p2) : C.dark, selected ? 0.8 : 1);
+    cell.lb.setColor(selected ? '#000000' : '#CCCCCC');
+  }
+}
+
 function handleName(time) {
-  // simplified — just show final
-  showFinal();
+  const n = ST.nameEntry;
+  if (!n || n.saving) return;
+  if (consume(['START1', 'START2'])) {
+    UI.name.setVisible(false);
+    UI.final.setVisible(true);
+    ST.phase = 'final';
+    finalData.startTime = time;
+    finalData.nextConfetti = time + 2000;
+    UI.finalBtn.setAlpha(1);
+    G.tweens.add({ targets: UI.finalBtn, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+    consumeAll();
+    return;
+  }
+  const p = n.who === 'p1' ? 'P1_' : 'P2_';
+  let moved = false;
+  if (consume([p + 'U'])) { n.row = (n.row + 4) % 5; moved = true; }
+  if (consume([p + 'D'])) { n.row = (n.row + 1) % 5; moved = true; }
+  const rowSize = UI.nameGrid.filter(c => c.row === n.row).length;
+  n.col = Math.min(n.col, rowSize - 1);
+  if (consume([p + 'L'])) { n.col = (n.col + rowSize - 1) % rowSize; moved = true; }
+  if (consume([p + 'R'])) { n.col = (n.col + 1) % rowSize; moved = true; }
+  if (moved) { playJingle('click'); updateNameEntry(); }
+  if (consume([p + '1'])) {
+    const cell = UI.nameGrid.find(c => c.row === n.row && c.col === n.col);
+    if (!cell) return;
+    if (cell.val === 'DEL') n.letters.pop();
+    else if (cell.val === 'END' || cell.val === '↵') { if (n.letters.length) commitName(); return; }
+    else if (n.letters.length < 3) n.letters.push(cell.val);
+    playJingle('click');
+    updateNameEntry();
+    if (n.letters.length === 3) commitName();
+  }
+}
+
+function commitName() {
+  const n = ST.nameEntry;
+  if (n.saving) return;
+  n.saving = true;
+  const entry = { name: n.letters.join('') || (n.who === 'p1' ? 'P1' : 'P2'), score: finalData.winScore, date: new Date().toISOString().slice(0, 10) };
+  ST.highScores = ST.highScores.concat(entry).sort((a, b) => b.score - a.score).slice(0, 10);
+  const render = scores => UI.finalBoard.setText('TOP SCORES\n' + scores.slice(0, 5).map((e, i) =>
+    (i + 1) + '. ' + e.name.padEnd(3, ' ') + '  ' + String(e.score).padStart(4, ' ')).join('\n'));
+  render(ST.highScores);
+  saveScore(entry).then(s => { ST.highScores = s; render(s); }).catch(() => {});
+  UI.name.setVisible(false);
+  UI.final.setVisible(true);
+  ST.phase = 'final';
+  finalData.qualifies = false;
+  finalData.startTime = G.time.now;
+  UI.finalBtn.setText('► BOTÓN 1: REVANCHA · START: INICIO ◄');
+  UI.finalBtn.setAlpha(1);
+  G.tweens.add({ targets: UI.finalBtn, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+  consumeAll();
 }
 
 // ─── STORAGE ───────────────────────────────────────────────────────────────
@@ -1228,10 +1373,17 @@ function getStorage() {
 async function loadScores() {
   const r = await getStorage().get(STORAGE_KEY);
   if (!r.found || !Array.isArray(r.value)) return [];
-  return r.value.slice(0, 10);
+  return r.value.filter(isValidHighScoreEntry).sort((a, b) => b.score - a.score).slice(0, 10);
+}
+
+function isValidHighScoreEntry(e) {
+  return !!e && typeof e.name === 'string' && e.name.length >= 1 && e.name.length <= 8 &&
+    typeof e.score === 'number' && Number.isFinite(e.score) && e.score >= 0 &&
+    typeof e.date === 'string';
 }
 
 async function saveScore(entry) {
+  if (!isValidHighScoreEntry(entry)) return loadScores();
   const existing = await loadScores();
   const next = existing.concat(entry)
     .sort((a, b) => b.score - a.score)
@@ -1246,7 +1398,7 @@ async function saveScore(entry) {
 const ARP = {
   BASKET_Y: H - 90, BASKET_W: 70, BASKET_H: 14,
   ITEM_R: 12, CATCH_DIST: 34,
-  SPAWN_INTERVAL: 900,
+  SPAWN_INTERVAL: 1000,
   BASE_SPEED: 160,
 };
 
@@ -1331,22 +1483,25 @@ function tickArepa(time, delta) {
       if (dx < ARP.CATCH_DIST && dy < 30) {
         hit = true;
         if (item.type === 'arepa') {
-          d.localScores[basket.player] += 10;
-          basket.scoreTxt.setText(d.localScores[basket.player]);
+          scoreAction(basket.player, 10, item.x, item.y, '');
+          basket.scoreTxt.setText(Math.floor(d.localScores[basket.player]));
           playJingle('catch');
           // flash green
           G.tweens.add({ targets: basket.gfx, fillColor: C.green, duration: 80, yoyo: true });
         } else {
-          d.localScores[basket.player] = Math.max(0, d.localScores[basket.player] - 5);
-          basket.scoreTxt.setText(d.localScores[basket.player]);
+          breakCombo(basket.player, item.x, item.y, 10, '¡CARBÓN!');
+          basket.scoreTxt.setText(Math.floor(d.localScores[basket.player]));
           playJingle('burn');
-          shake(5);
           G.tweens.add({ targets: basket.gfx, fillColor: C.red, duration: 80, yoyo: true });
         }
         break;
       }
     }
 
+    if (!hit && item.y > H + 20 && item.type === 'arepa') {
+      const player = item.arena === 0 ? 'p1' : 'p2';
+      if (d.streak[player]) breakCombo(player, item.x, H - 70, 0, 'SE FUE');
+    }
     if (hit || item.y > H + 20) {
       item.gfx.destroy();
       d.items.splice(i, 1);
@@ -1356,17 +1511,14 @@ function tickArepa(time, delta) {
 
 function spawnArepaItem(time) {
   const d = mgData;
-  // Each item spawns in one of the two arenas
-  const arena = Math.random() < 0.5 ? 0 : 1;
-  const xMin = arena === 0 ? 20 : HALF + 20;
-  const xMax = arena === 0 ? HALF - 20 : W - 20;
-  const x = xMin + Math.random() * (xMax - xMin);
   const isArepa = Math.random() < 0.68;
-
-  const gfx = isArepa ? createPixelArepa(x, 55) : createPixelCarbon(x, 55);
-
-  mgObjects.push(gfx);
-  d.items.push({ x, y: 55, gfx, type: isArepa ? 'arepa' : 'carbon', arena });
+  const rel = 24 + Math.random() * (HALF - 48);
+  for (let arena = 0; arena < 2; arena++) {
+    const x = arena ? HALF + rel : rel;
+    const gfx = isArepa ? createPixelArepa(x, 55) : createPixelCarbon(x, 55);
+    mgObjects.push(gfx);
+    d.items.push({ x, y: 55, gfx, type: isArepa ? 'arepa' : 'carbon', arena });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1393,8 +1545,8 @@ function laneX(arena, lane) {
 function initChiva() {
   const d = mgData;
   d.players = [
-    { lane: 1, lives: CH.MAX_LIVES, arena: 0, player: 'p1', col: C.p1, alive: true, laneCD: 0 },
-    { lane: 1, lives: CH.MAX_LIVES, arena: 1, player: 'p2', col: C.p2, alive: true, laneCD: 0 },
+    { lane: 1, lives: CH.MAX_LIVES, arena: 0, player: 'p1', col: C.p1, alive: true, laneCD: 0, invuln: 0, lastMove: 0 },
+    { lane: 1, lives: CH.MAX_LIVES, arena: 1, player: 'p2', col: C.p2, alive: true, laneCD: 0, invuln: 0, lastMove: 0 },
   ];
   d.obstacles = [];
   d.nextSpawn = G.time.now + 600;
@@ -1463,13 +1615,15 @@ function tickChiva(time, delta) {
     const rBtn = isP1 ? 'P1_R' : 'P2_R';
 
     if (time > p.laneCD) {
-      if (held(lBtn) && p.lane > 0) {
+      if (consume([lBtn]) && p.lane > 0) {
         p.lane--;
-        p.laneCD = time + 220;
+        p.laneCD = time + 90;
+        p.lastMove = time;
         playJingle('horn');
-      } else if (held(rBtn) && p.lane < CH.LANES - 1) {
+      } else if (consume([rBtn]) && p.lane < CH.LANES - 1) {
         p.lane++;
-        p.laneCD = time + 220;
+        p.laneCD = time + 90;
+        p.lastMove = time;
         playJingle('horn');
       }
     }
@@ -1496,7 +1650,7 @@ function tickChiva(time, delta) {
     obs.gfx.setY(obs.y);
 
     for (const p of d.players) {
-      if (!p.alive || obs.hit) continue;
+      if (!p.alive || obs.hit || time < p.invuln) continue;
       if (obs.arena !== p.arena) continue;
       const obsLaneX = laneX(p.arena, obs.lane);
       const dx = Math.abs(p.currentX - obsLaneX);
@@ -1504,20 +1658,19 @@ function tickChiva(time, delta) {
       if (dx < CH.CHIVA_W * 0.55 && dy < 36) {
         obs.hit = true;
         p.lives--;
+        p.invuln = time + 650;
         updateChivaLives(p);
         playJingle('crash');
-        shake(6);
+        breakCombo(p.player, p.currentX, H - 145, 20, '¡PUM!');
         // flash the chiva
         if (p.gfx) {
           G.tweens.add({ targets: p.gfx, alpha: 0.2, duration: 80, yoyo: true, repeat: 2,
             onComplete: () => p.gfx.setAlpha(1) });
         }
         if (p.lives <= 0) {
-          p.alive = false;
-          if (p.gfx) p.gfx.setAlpha(0.2);
-          d.localScores[p.player] = 0; // penalty for dying
-        } else {
-          d.localScores[p.player] += 5; // survive points
+          p.lives = CH.MAX_LIVES;
+          updateChivaLives(p);
+          pop(p.currentX, H - 170, '¡A RODAR OTRA VEZ!', p.player === 'p1' ? C.p1t : C.p2t);
         }
         break;
       }
@@ -1531,7 +1684,9 @@ function tickChiva(time, delta) {
         if (p.alive && obs.arena === p.arena) {
           const obsLX = laneX(p.arena, obs.lane);
           if (Math.abs(p.currentX - obsLX) > CH.LANE_W * 0.4) {
-            d.localScores[p.player] += 8;
+            const near = time - p.lastMove < 240;
+            scoreAction(p.player, near ? 15 : 8, p.currentX, H - 145, near ? '¡RASPADITO!' : '');
+            if (near) playJingle('near');
           }
         }
       }
@@ -1543,16 +1698,12 @@ function tickChiva(time, delta) {
     }
   }
 
-  // alive score every frame
-  for (const p of d.players) {
-    if (p.alive) d.localScores[p.player] += dt * 2;
-  }
 }
 
 function spawnChivaObs(time) {
   const d = mgData;
+  const lane = Math.floor(Math.random() * CH.LANES);
   for (let arena = 0; arena < 2; arena++) {
-    const lane = Math.floor(Math.random() * CH.LANES);
     const x = laneX(arena, lane);
     const gfx = createPixelObstacle(x, 70);
     mgObjects.push(gfx);
@@ -1587,14 +1738,14 @@ function initTejo() {
       angle: -90, charge: 0, charging: false,
       tejos: TJ.MAX_THROWS, score: 0,
       tejo: null, flying: false, tx: 0, ty: 0, vx: 0, vy: 0,
-      throwCD: 0,
+      throwCD: 0, statusState: 'ready', perfectCharge: false,
     },
     {
       arena: 1, player: 'p2', col: C.p2,
       angle: -90, charge: 0, charging: false,
       tejos: TJ.MAX_THROWS, score: 0,
       tejo: null, flying: false, tx: 0, ty: 0, vx: 0, vy: 0,
-      throwCD: 0,
+      throwCD: 0, statusState: 'ready', perfectCharge: false,
     },
   ];
   d.mechas = [];
@@ -1617,13 +1768,12 @@ function initTejo() {
   l1.setDepth(7); l2.setDepth(7);
   mgObjects.push(l1, l2);
 
-  // Spawn pixel-art clay court & mechas in each arena
-  for (let ar = 0; ar < 2; ar++) {
-    const aX = ar === 0 ? 20 : HALF + 20;
-    const aW = HALF - 40;
-    for (let i = 0; i < MECHAS_PER_ARENA; i++) {
-      const mx = aX + 40 + Math.random() * (aW - 80);
-      const my = 120 + Math.random() * 200;
+  // Identical target layout on both sides: skill decides the duel.
+  for (let i = 0; i < MECHAS_PER_ARENA; i++) {
+    const relX = 60 + Math.random() * (HALF - 120);
+    const my = 120 + Math.random() * 200;
+    for (let ar = 0; ar < 2; ar++) {
+      const mx = relX + (ar ? HALF : 0);
       // Clay box (caja de greda)
       const clayBox = G.add.rectangle(mx, my, TJ.MECHA_R * 2 + 10, TJ.MECHA_R * 2 + 10, 0x5C2E0A);
       clayBox.setStrokeStyle(2, 0x3D1E07);
@@ -1656,7 +1806,7 @@ function initTejo() {
     d.players[ar].scoreTxt = sTxt;
 
     // Control hint text
-    const instrTxt = retT(px, py + 60, ar === 0 ? 'DISPARA: [U / ESPACIO]' : 'DISPARA: [R / SHIFT]', 10, '#8888AA', 0.5);
+    const instrTxt = retT(px, py + 60, 'DISPARA: BOTÓN 1', 10, '#8888AA', 0.5);
     mgObjects.push(instrTxt);
 
     // Charge bar bg
@@ -1664,7 +1814,8 @@ function initTejo() {
     barBg.setStrokeStyle(1, C.div, 0.8);
     const barFg = G.add.rectangle(px - 40, py - 22, 0, 8, ar === 0 ? C.p1 : C.p2);
     barFg.setOrigin(0, 0.5);
-    mgObjects.push(barBg, barFg);
+    const sweet = G.add.rectangle(px + 12, py - 22, 16, 12, C.green, 0.38).setStrokeStyle(1, C.white, 0.7);
+    mgObjects.push(barBg, barFg, sweet);
     d.players[ar].barFg = barFg;
 
     // Status prompt
@@ -1699,11 +1850,20 @@ function tickTejo(time, delta) {
         p.charging = true;
         p.charge = Math.min(1, p.charge + dt * (1000 / TJ.CHARGE_TIME));
         p.barFg.setSize(p.charge * 80, 8);
-        if (p.statusTxt) p.statusTxt.setText('¡SUELTA PARA LANZAR!').setColor('#00FF41');
+        const chargeState = p.charge >= 0.55 && p.charge <= 0.75 ? 'sweet' : p.charge > 0.9 ? 'over' : 'charging';
+        if (p.statusTxt && p.statusState !== chargeState) {
+          p.statusState = chargeState;
+          p.statusTxt.setText(chargeState === 'sweet' ? '¡AHÍ, SUELTA!' : chargeState === 'over' ? '¡MUCHA FUERZA!' : '¡SIGUE CARGANDO!');
+          p.statusTxt.setColor(chargeState === 'sweet' ? '#00FF41' : chargeState === 'over' ? C.rt : '#FFFF00');
+        }
       } else if (p.charging) {
         // Release → launch (guarantee minimum power so it flies nicely)
         p.charging = false;
-        if (p.statusTxt) p.statusTxt.setText('MANTÉN BOTÓN 1').setColor('#FFFF00');
+        if (p.statusTxt && p.statusState !== 'ready') {
+          p.statusState = 'ready';
+          p.statusTxt.setText('MANTÉN BOTÓN 1').setColor('#FFFF00');
+        }
+        p.perfectCharge = p.charge >= 0.55 && p.charge <= 0.75;
         const effectiveCharge = Math.max(0.25, p.charge);
         const speed = TJ.MIN_SPEED + effectiveCharge * (TJ.MAX_SPEED - TJ.MIN_SPEED);
         const rad = (p.angle * Math.PI) / 180;
@@ -1760,9 +1920,9 @@ function tickTejo(time, delta) {
           m.active = false;
           m.gfx.setAlpha(0.2);
           G.tweens.killTweensOf(m.gfx);
-          const pts = Math.round(100 + (1 - dist / (TJ.MECHA_R * 3)) * 300);
-          p.score += pts;
-          d.localScores[p.player] = p.score;
+          const pts = Math.round(100 + (1 - dist / (TJ.MECHA_R * 3)) * 300) + (p.perfectCharge ? 100 : 0);
+          scoreAction(p.player, pts, m.x, m.y - 25, dist < 10 ? '¡MOÑONA!' : p.perfectCharge ? '¡PUNTO DULCE!' : '');
+          p.score = d.localScores[p.player];
           p.scoreTxt.setText(p.score + ' pts');
           playJingle('explode');
           shake(8);
@@ -1782,6 +1942,7 @@ function tickTejo(time, delta) {
         p.flying = false;
         if (p.tejo) p.tejo.setAlpha(0);
         if (p.aimGfx) p.aimGfx.clear();
+        breakCombo(p.player, p.launchX, p.launchY - 55, 0, 'CASI...');
         p.throwCD = time + 300;
       }
     }
@@ -1789,7 +1950,10 @@ function tickTejo(time, delta) {
     // No more throws: clear aim
     if (p.tejos <= 0 && !p.flying && p.aimGfx) {
       p.aimGfx.clear();
-      if (p.statusTxt) p.statusTxt.setText('SIN TIROS').setColor('#666688');
+      if (p.statusTxt && p.statusState !== 'empty') {
+        p.statusState = 'empty';
+        p.statusTxt.setText('SIN TIROS').setColor('#666688');
+      }
     }
   }
 }
@@ -1812,130 +1976,128 @@ function spawnTejoParticles(x, y) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MICROJUEGO 4: CAFÉ EN EQUILIBRIO
+// MICROJUEGO 4: CUMBIA CANDELA
 // ═══════════════════════════════════════════════════════════════════════════
-const CF = {
-  TRAY_W: 110, TRAY_H: 8,
-  MAX_ANGLE: 28, // degrees
-  SPILL_ANGLE: 15, // Starts spilling past 15°
-  TRAY_Y: H - 130,
+const CU = {
+  HIT_Y: 455, START_Y: 105, TRAVEL: 950, WINDOW: 240,
+  DIRS: ['U', 'R', 'D', 'L'], GLYPHS: ['↑', '→', '↓', '←'],
 };
 
-function initCafe() {
+function cumbiaX(arena, lane) {
+  return (arena ? HALF : 0) + 70 + lane * 86;
+}
+
+function initCumbia() {
   const d = mgData;
-  d.players = [
-    { arena: 0, player: 'p1', col: C.p1, angle: 0, angVel: 0, coffee: 1.0, trayX: HALF / 2 },
-    { arena: 1, player: 'p2', col: C.p2, angle: 0, angVel: 0, coffee: 1.0, trayX: HALF + HALF / 2 },
-  ];
-  d.oscillators = [
-    { phase: 0, freq: 1.4, amp: 0.8 },
-    { phase: Math.PI * 0.7, freq: 1.6, amp: 0.8 },
-  ];
-  d.gfxParts = [[], []];
+  d.sequence = [];
+  d.targets = [[], []];
+  d.scoreTxt = [];
 
-  // Arena backgrounds
-  const bg1 = G.add.rectangle(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
-  const bg2 = G.add.rectangle(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.5);
+  const bg1 = rect(HALF / 2, H / 2, HALF - 4, H, C.panel, 0.8);
+  const bg2 = rect(HALF + HALF / 2, H / 2, HALF - 4, H, C.panel, 0.8);
   mgObjects.push(bg1, bg2);
+  drawArenaFrame(0); drawArenaFrame(1);
 
-  // Neon arena frames
-  drawArenaFrame(0);
-  drawArenaFrame(1);
+  for (let ar = 0; ar < 2; ar++) {
+    const col = ar ? C.p2 : C.p1;
+    const colText = ar ? C.p2t : C.p1t;
+    const center = ar ? HALF + HALF / 2 : HALF / 2;
+    const label = retT(center, 76, ar ? '◄ PLAYER 2 ►' : '◄ PLAYER 1 ►', 12, colText, 0.5).setDepth(7);
+    const line = rect(center, CU.HIT_Y + 28, 350, 3, col, 0.75).setDepth(6);
+    const score = retT(center, 535, '0 PTS', 2, colText, 0.5).setDepth(8);
+    mgObjects.push(label, line, score);
+    d.scoreTxt[ar] = score;
 
-  // Retro Player labels
-  const l1 = retT(HALF / 2, 76, '◄ PLAYER 1 ►', 12, C.p1t, 0.5);
-  const l2 = retT(HALF + HALF / 2, 76, '◄ PLAYER 2 ►', 12, C.p2t, 0.5);
-  l1.setDepth(7); l2.setDepth(7);
-  mgObjects.push(l1, l2);
+    for (let lane = 0; lane < 4; lane++) {
+      const x = cumbiaX(ar, lane);
+      const box = rect(x, CU.HIT_Y, 54, 54, 0x101028, 1).setStrokeStyle(2, col, 0.75).setDepth(5);
+      const arrow = retT(x, CU.HIT_Y, CU.GLYPHS[lane], 3, colText, 0.5).setDepth(6);
+      d.targets[ar].push(box);
+      mgObjects.push(box, arrow);
+    }
 
-  // Per-player graphics
-  for (let i = 0; i < 2; i++) {
-    const p = d.players[i];
-    // Tray (wood grain bar)
-    p.trayGfx = G.add.rectangle(p.trayX, CF.TRAY_Y, CF.TRAY_W, CF.TRAY_H, 0x8B4513);
-    p.trayGfx.setStrokeStyle(2, 0x5C2E0A);
-    p.trayGfx.setDepth(8);
+    for (let row = 0; row < 5; row++) {
+      const tile = rect(center, 130 + row * 62, 340 - row * 16, 1, row % 2 ? C.dance1 : C.dance2, 0.12).setDepth(2);
+      mgObjects.push(tile);
+    }
+  }
 
-    // Pixel Mug (pocillo de peltre resting firmly on tray)
-    p.cupGfx = G.add.graphics();
-    p.cupGfx.setDepth(10);
-    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 4, p.angle);
-
-    // Coffee % text
-    p.pctTxt = retT(p.trayX, CF.TRAY_Y + 30, 'CAFÉ: 100%', 15, i === 0 ? C.p1t : C.p2t, 0.5);
-    // Score text
-    p.scoreTxt = retT(p.trayX, CF.TRAY_Y + 52, '0 pts', 14, i === 0 ? C.p1t : C.p2t, 0.5);
-    // "EQUILIBRIO" hint
-    const hint = retT(p.trayX, H - 26, '◄ JOYSTICK: CONTRARRESTA ►', 11, '#8888AA', 0.5);
-
-    mgObjects.push(p.trayGfx, p.cupGfx, p.pctTxt, p.scoreTxt, hint);
+  let hit = d.startTime + 1300;
+  let last = -1;
+  while (hit < d.startTime + d.duration - 180) {
+    let dir = Math.floor(Math.random() * 4);
+    if (dir === last) dir = (dir + 1 + Math.floor(Math.random() * 3)) % 4;
+    d.sequence.push({ dir, spawn: hit - CU.TRAVEL, hit, spawned: false, state: { p1: 0, p2: 0 }, gfx: [null, null] });
+    last = dir;
+    const elapsed = hit - d.startTime;
+    hit += elapsed > d.duration - 3000 ? 360 : elapsed > 3800 ? 520 : 680;
   }
 }
 
-function tickCafe(time, delta) {
+function spawnCumbiaNote(note) {
+  note.spawned = true;
+  for (let ar = 0; ar < 2; ar++) {
+    const col = ar ? C.p2 : C.p1;
+    const bg = G.add.rectangle(0, 0, 42, 42, col, 0.95).setStrokeStyle(2, C.white, 0.65);
+    const arrow = retT(0, 0, CU.GLYPHS[note.dir], 3, '#000000', 0.5);
+    const item = G.add.container(cumbiaX(ar, note.dir), CU.START_Y, [bg, arrow]).setDepth(12);
+    note.gfx[ar] = item;
+    mgObjects.push(item);
+  }
+  tone(180 + note.dir * 55, 0.035, 'square', 0.025);
+}
+
+function tickCumbia(time, delta) {
   const d = mgData;
-  const dt = delta / 1000;
-  const elapsed = (time - d.startTime) / 1000;
+  for (const note of d.sequence) {
+    if (!note.spawned && time >= note.spawn) spawnCumbiaNote(note);
+    if (!note.spawned) continue;
+    const progress = Math.min(1.25, Math.max(0, (time - note.spawn) / CU.TRAVEL));
+    for (let ar = 0; ar < 2; ar++) if (note.gfx[ar]) note.gfx[ar].setY(CU.START_Y + (CU.HIT_Y - CU.START_Y) * progress);
+    if (time > note.hit + CU.WINDOW) {
+      let missed = false;
+      for (let ar = 0; ar < 2; ar++) {
+        const player = ar ? 'p2' : 'p1';
+        if (note.state[player] === 0) {
+          note.state[player] = -1;
+          missed = true;
+          breakCombo(player, cumbiaX(ar, note.dir), CU.HIT_Y - 55, 5, '¡SE FUE!');
+          if (note.gfx[ar]) note.gfx[ar].setAlpha(0.15);
+        }
+      }
+      if (missed) playJingle('fail');
+    }
+  }
 
-  for (let i = 0; i < 2; i++) {
-    const p = d.players[i];
-    const osc = d.oscillators[i];
+  for (let ar = 0; ar < 2; ar++) {
+    const player = ar ? 'p2' : 'p1';
+    const prefix = ar ? 'P2_' : 'P1_';
+    let pressed = -1;
+    for (let lane = 0; lane < 4; lane++) if (consume([prefix + CU.DIRS[lane]]) && pressed < 0) pressed = lane;
+    if (pressed < 0) continue;
 
-    // Oscillator drives the tray with active turbulent waves
-    osc.phase += osc.freq * dt * (1.2 + elapsed * 0.12);
-    const wave1 = Math.sin(osc.phase) * (1.3 + elapsed * 0.15);
-    const wave2 = Math.sin(osc.phase * 2.7) * 0.6;
-    const externalForce = wave1 + wave2;
-
-    // Player counter-force via joystick
-    const isP1 = p.player === 'p1';
-    const lBtn = isP1 ? 'P1_L' : 'P2_L';
-    const rBtn = isP1 ? 'P1_R' : 'P2_R';
-    let playerForce = 0;
-    if (held(lBtn)) playerForce -= 2.4;
-    if (held(rBtn)) playerForce += 2.4;
-
-    // Angular physics
-    const totalForce = externalForce + playerForce;
-    p.angVel += totalForce * 110 * dt;
-    p.angVel *= 0.88; // damping
-    p.angle += p.angVel * dt;
-    p.angle = Math.max(-CF.MAX_ANGLE, Math.min(CF.MAX_ANGLE, p.angle));
-
-    // Spill (active when exceeding SPILL_ANGLE)
-    if (Math.abs(p.angle) > CF.SPILL_ANGLE && p.coffee > 0) {
-      const spillRate = (Math.abs(p.angle) - CF.SPILL_ANGLE) / (CF.MAX_ANGLE - CF.SPILL_ANGLE);
-      p.coffee = Math.max(0, p.coffee - spillRate * 0.035);
-      if (Math.random() < 0.22) {
-        // Square pixel splash drops
-        const side = p.angle > 0 ? 1 : -1;
-        const px2 = p.trayX + side * 44;
-        const sp = G.add.rectangle(px2, CF.TRAY_Y - 5, 4, 4, 0x3B1A06);
-        sp.setDepth(15);
-        G.tweens.add({
-          targets: sp, x: px2 + side * 24, y: CF.TRAY_Y + 24, alpha: 0, duration: 280,
-          onComplete: () => sp.destroy(),
-        });
-        playJingle('fail');
+    let best = null, distance = Infinity;
+    for (const note of d.sequence) {
+      const diff = Math.abs(time - note.hit);
+      if (note.spawned && note.dir === pressed && note.state[player] === 0 && diff < distance) {
+        best = note; distance = diff;
       }
     }
 
-    // Score: points per frame for keeping coffee
-    d.localScores[p.player] += p.coffee * dt * 40;
-
-    // Update graphics
-    const rad = (p.angle * Math.PI) / 180;
-    p.trayGfx.setRotation(rad);
-
-    // Redraw pixel pocillo attached firmly to tray
-    createPixelPocillo(p.cupGfx, p.trayX, CF.TRAY_Y - 4, p.angle);
-
-    // Text update with retro gauge
-    const pct = Math.round(p.coffee * 100);
-    const bars = Math.round(p.coffee * 8);
-    const barStr = '■'.repeat(bars) + '░'.repeat(8 - bars);
-    p.pctTxt.setText('CAFÉ [' + barStr + '] ' + pct + '%');
-    p.pctTxt.setColor(pct > 60 ? (i === 0 ? C.p1t : C.p2t) : pct > 30 ? '#FFAA00' : C.rt);
-    p.scoreTxt.setText(Math.floor(d.localScores[p.player]) + ' pts');
+    if (best && distance <= CU.WINDOW) {
+      best.state[player] = 1;
+      if (best.gfx[ar]) best.gfx[ar].setAlpha(0.12);
+      const perfect = distance <= 70;
+      const good = distance <= 150;
+      scoreAction(player, perfect ? 50 : good ? 30 : 15, cumbiaX(ar, pressed), CU.HIT_Y - 58,
+        perfect ? '¡PERFECTO!' : good ? '¡BIEN!' : 'TARDE');
+      d.scoreTxt[ar].setText(Math.floor(d.localScores[player]) + ' PTS');
+      G.tweens.add({ targets: d.targets[ar][pressed], scale: 1.25, duration: 65, yoyo: true });
+      if (perfect) playJingle('near');
+    } else {
+      breakCombo(player, cumbiaX(ar, pressed), CU.HIT_Y - 58, 8, '¡A DESTIEMPO!');
+      d.scoreTxt[ar].setText(Math.floor(d.localScores[player]) + ' PTS');
+      playJingle('burn');
+    }
   }
 }

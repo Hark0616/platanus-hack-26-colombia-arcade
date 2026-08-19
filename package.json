@@ -10,6 +10,6 @@
   },
   "devDependencies": {
     "@platanus/arcade-dev-ui-26": "latest",
-    "vite": "^7.1.12"
+    "vite": "^5.4.0"
   }
 }

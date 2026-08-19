@@ -445,32 +445,36 @@ function createPixelPocillo(g, x, y, tiltAngle) {
   g.restore();
 }
 
-// Procedural pixel-art Chiva Bus
+// Procedural pixel-art Chiva Bus (Vista trasera cenital / Arcade top-down rear view)
 function createPixelChiva(x, y, isP1) {
   const g = G.add.graphics({ x, y });
-  // Chiva Colombiana: Luggage roof rack, colored body stripes, windshield, tires
+  // Chiva Colombiana vista desde atrás: Canasto de plátanos y maletas en el techo,
+  // ventanillas traseras con escalera central de madera, franjas tricolor y luces de freno.
   const pattern = [
-    '..YYYYGGGGCCCC..', // Roof rack with bananas/luggage
-    '.RRRRRRRRRRRRRR.', // Roof ladder / rack base
-    'CWWWWWWWWWWWWWWC', // Windshield visor
-    'CWWCCCCCCWWWWWWC', // Glass windows
-    'YYYYYYYYYYYYYYYY', // Yellow flag stripe
-    'BBBBBBBBBBBBBBBB', // Blue flag stripe
-    'RRRRRRRRRRRRRRRR', // Red flag stripe
-    'TT.LLLLLLLLLL.TT', // Wheel wells & wooden ladder
-    'TT............TT', // Chunky square tires
+    '..GGYYRRRRYYGG..', // Equipaje en el techo (plátanos verdes, canastos amarillos, maletas)
+    '.RRRRRRRRRRRRRR.', // Baranda superior de madera
+    'WWWWWWWWWWWWWWWW', // Moldura blanca superior y espejos retrovisores
+    'WWCC..LLLL..CCWW', // Ventanas traseras (vidrio cian) con escalera central de madera (L)
+    'YYYYYYYYYYYYYYYY', // Franja amarilla tradicional
+    'BBBBBBLLLLBBBBBB', // Franja azul (o morada P2) con escalera
+    'RRRRRRLLLLRRRRRR', // Franja roja con escalera
+    'AA............AA', // Luces direccionales ámbar
+    'RRTT.MMMMMM.TTRR', // Luces rojas de freno (R), llantas duales (T), bomper de madera (M)
+    '..TT........TT..', // Huella de llantas traseras
   ];
   const palette = {
-    Y: 0xFFD700, // Yellow stripe / bananas
-    G: 0x00AA44, // Green luggage / plantains
-    C: 0x00E5FF, // Cyan windshield / mirrors
-    R: 0xDD1100, // Red stripe / roof rack
-    W: 0xFFFFFF, // Window frame / lights
-    B: isP1 ? 0x0033AA : 0x8800AA, // Blue stripe (P1) or Purple stripe (P2)
-    L: 0x8B4513, // Wooden ladder
-    T: 0x111111, // Square black tires
+    Y: 0xFFD700, // Amarillo bandera / canastos
+    G: 0x00AA44, // Verde plátanos
+    R: 0xDD1100, // Rojo bandera / luces de freno
+    W: 0xFFFFFF, // Moldura y marco
+    C: 0x00E5FF, // Vidrio cian
+    L: 0x8B4513, // Escalera trasera de madera
+    B: isP1 ? 0x0033AA : 0x8800AA, // Franja azul (P1) o violeta (P2)
+    A: 0xFFAA00, // Luces ámbar
+    M: 0xC47800, // Bomper de madera tradicional
+    T: 0x111111, // Llantas cuadradas de caucho
   };
-  drawPixelMatrix(g, pattern, palette, -24, -18, 3);
+  drawPixelMatrix(g, pattern, palette, -24, -15, 3);
   g.setDepth(10);
   return g;
 }

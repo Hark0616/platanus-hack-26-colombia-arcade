@@ -239,25 +239,117 @@ function shake(frames) {
   ST.shakeFrames = frames || 8;
 }
 
+// ─── 8-BIT ARCADE PIXEL FONT ENGINE ─────────────────────────────────────────
+// Compact 5x7 bitmap font definitions for all arcade characters
+const FONT_5X7 = {
+  'A': [14,17,17,31,17,17,17], 'B': [30,17,17,30,17,17,30], 'C': [14,17,16,16,16,17,14],
+  'D': [28,18,17,17,17,18,28], 'E': [31,16,16,30,16,16,31], 'F': [31,16,16,30,16,16,16],
+  'G': [14,17,16,23,17,17,15], 'H': [17,17,17,31,17,17,17], 'I': [14,4,4,4,4,4,14],
+  'J': [7,2,2,2,2,18,12],      'K': [17,18,20,24,20,18,17], 'L': [16,16,16,16,16,16,31],
+  'M': [17,27,21,17,17,17,17], 'N': [17,25,21,19,17,17,17], 'O': [14,17,17,17,17,17,14],
+  'P': [30,17,17,30,16,16,16], 'Q': [14,17,17,17,21,18,13], 'R': [30,17,17,30,20,18,17],
+  'S': [15,16,16,14,1,1,30],   'T': [31,4,4,4,4,4,4],       'U': [17,17,17,17,17,17,14],
+  'V': [17,17,17,17,17,10,4],  'W': [17,17,17,17,21,27,17], 'X': [17,17,10,4,10,17,17],
+  'Y': [17,17,10,4,4,4,4],     'Z': [31,1,2,4,8,16,31],
+  '0': [14,17,19,21,25,17,14], '1': [4,12,4,4,4,4,14],     '2': [14,17,1,2,4,8,31],
+  '3': [31,2,4,2,1,17,14],     '4': [2,6,10,18,31,2,2],     '5': [31,16,30,1,1,17,14],
+  '6': [6,8,16,30,17,17,14],   '7': [31,1,2,4,8,8,8],       '8': [14,17,17,14,17,17,14],
+  '9': [14,17,17,15,1,2,12],   ' ': [0,0,0,0,0,0,0],        '.': [0,0,0,0,0,12,12],
+  ',': [0,0,0,0,0,6,12],       ':': [0,12,12,0,12,12,0],    '!': [4,4,4,4,0,4,0],
+  '¡': [0,4,0,4,4,4,4],        '?': [14,17,1,2,0,2,0],      '¿': [0,8,0,8,16,17,14],
+  '-': [0,0,0,31,0,0,0],       '+': [0,4,4,31,4,4,0],       '/': [1,2,4,8,16,0,0],
+  '%': [25,25,2,4,8,19,19],    '★': [4,14,31,14,27,17,0],   '♥': [10,31,31,31,14,4,0],
+  '◄': [2,6,14,30,14,6,2],     '►': [8,12,14,15,14,12,8],   '■': [31,31,31,31,31,31,31],
+  '░': [21,10,21,10,21,10,21], '↵': [1,1,5,13,31,12,4],     '_': [0,0,0,0,0,0,31],
+  '[': [14,8,8,8,8,8,14],      ']': [14,2,2,2,2,2,14],      '(': [2,4,8,8,8,4,2],
+  ')': [8,4,2,2,2,4,8],        '©': [14,21,17,21,17,21,14], '·': [0,0,12,12,0,0,0],
+  'Á': [4,14,17,31,17,17,17],  'É': [4,31,16,30,16,16,31],  'Í': [4,14,4,4,4,4,14],
+  'Ó': [4,14,17,17,17,17,14],  'Ú': [4,17,17,17,17,17,14],  'Ñ': [10,17,25,21,19,17,17],
+  '—': [0,0,0,31,0,0,0],       '~': [0,10,21,0,0,0,0],
+};
+
 function pad2(n) { return String(Math.max(0, Math.floor(n))).padStart(2, '0'); }
 
-// txt() — texto con stroke negro para legibilidad retro
-function txt(x, y, s, size, color, origin, bold) {
-  return G.add.text(x, y, s, {
-    fontFamily: 'monospace', fontSize: (size || 16) + 'px',
-    color: color || '#FFFFFF', fontStyle: bold ? 'bold' : 'normal',
-    stroke: '#000000', strokeThickness: bold ? 4 : 2,
-  }).setOrigin(origin !== undefined ? origin : 0.5);
+// retT() & txt() — Renders 100% authentic chunky square 8-bit arcade pixel font
+function retT(x, y, s, sizeOrScale, colHex, origin) {
+  let scale = typeof sizeOrScale === 'number' ? (sizeOrScale <= 8 ? sizeOrScale : Math.max(1, Math.round(sizeOrScale / 8))) : 2;
+
+  const g = G.add.graphics();
+  let currentText = String(s !== undefined ? s : '');
+  let currentColor = colHex || '#FFFFFF';
+  let currentOrigin = origin !== undefined ? origin : 0.5;
+  let currentX = x, currentY = y;
+
+  function render() {
+    g.clear();
+    const lines = currentText.split('\n');
+    const lineHeight = (7 + 2) * scale;
+    const maxLineLen = Math.max(...lines.map(l => l.length), 0);
+    const totalW = maxLineLen * (5 + 1) * scale;
+    const totalH = lines.length * lineHeight;
+
+    const ox = typeof currentOrigin === 'object' ? currentOrigin.x : currentOrigin;
+    const oy = typeof currentOrigin === 'object' ? currentOrigin.y : currentOrigin;
+
+    const startX = currentX - totalW * ox;
+    const startY = currentY - totalH * oy;
+
+    const numColor = typeof currentColor === 'number' ? currentColor : parseInt(String(currentColor).replace('#', '0x'), 16) || 0xFFFFFF;
+
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li];
+      const lineY = startY + li * lineHeight;
+      for (let ci = 0; ci < line.length; ci++) {
+        const rawCh = line[ci];
+        const ch = rawCh.toUpperCase();
+        const glyph = FONT_5X7[ch] || FONT_5X7[rawCh] || FONT_5X7['?'] || [0,0,0,0,0,0,0];
+        const charX = startX + ci * (5 + 1) * scale;
+
+        // Shadow pixels (1 unit offset)
+        g.fillStyle(0x000000, 0.95);
+        for (let r = 0; r < 7; r++) {
+          const bits = glyph[r];
+          for (let c = 0; c < 5; c++) {
+            if ((bits >> (4 - c)) & 1) {
+              g.fillRect(charX + c * scale + scale, lineY + r * scale + scale, scale, scale);
+            }
+          }
+        }
+
+        // Foreground pixel
+        g.fillStyle(numColor, 1);
+        for (let r = 0; r < 7; r++) {
+          const bits = glyph[r];
+          for (let c = 0; c < 5; c++) {
+            if ((bits >> (4 - c)) & 1) {
+              g.fillRect(charX + c * scale, lineY + r * scale, scale, scale);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const obj = {
+    _g: g,
+    setText(newText) { currentText = String(newText !== undefined ? newText : ''); render(); return this; },
+    setColor(newCol) { currentColor = newCol; render(); return this; },
+    setOrigin(o, oy) { currentOrigin = (oy !== undefined ? { x: o, y: oy } : o); render(); return this; },
+    setPosition(nx, ny) { currentX = nx; currentY = ny; render(); return this; },
+    setX(nx) { currentX = nx; render(); return this; },
+    setY(ny) { currentY = ny; render(); return this; },
+    setDepth(d) { g.setDepth(d); return this; },
+    setVisible(v) { g.setVisible(v); return this; },
+    setAlpha(a) { g.setAlpha(a); return this; },
+    destroy() { g.destroy(); },
+  };
+
+  render();
+  return obj;
 }
 
-// retT() — texto retro con glow-shadow y stroke fuerte (para UI del juego)
-function retT(x, y, s, size, colHex, origin) {
-  return G.add.text(x, y, s, {
-    fontFamily: 'monospace', fontSize: (size || 14) + 'px',
-    color: colHex || '#FFFFFF', fontStyle: 'bold',
-    stroke: '#000000', strokeThickness: 4,
-    shadow: { offsetX: 0, offsetY: 0, color: colHex || '#FFFFFF', blur: 8, fill: true },
-  }).setOrigin(origin !== undefined ? origin : 0.5);
+function txt(x, y, s, size, color, origin) {
+  return retT(x, y, s, size, color, origin);
 }
 
 // scorePanel() — panel retro detrás de un texto de puntuación
@@ -591,9 +683,7 @@ function buildUI(scene) {
 
   // Top banner line
   UI.intro.add(rect(W/2, 44, W, 2, C.p1, 0.8));
-  UI.intro.add(scene.add.text(W/2, 22, '★  PLATANUS HACK 26 · BOGOTÁ  ★', {
-    fontFamily: 'monospace', fontSize: '13px', color: C.p1t,
-  }).setOrigin(0.5));
+  UI.intro.add(retT(W/2, 22, '★  PLATANUS HACK 26 · BOGOTÁ  ★', 2, C.p1t, 0.5));
 
   // Stars scattered
   const starG = scene.add.graphics();
@@ -603,58 +693,36 @@ function buildUI(scene) {
   }
   UI.intro.add(starG);
 
-  // Title shadow (offset 3px)
-  const titleShadow = scene.add.text(W/2 + 4, 164, 'PARCHE\nPARTY', {
-    fontFamily: 'monospace', fontSize: '80px', color: '#220000', fontStyle: 'bold',
-    align: 'center', lineSpacing: -14,
-  }).setOrigin(0.5);
-  UI.intro.add(titleShadow);
-
-  UI.introTitle = scene.add.text(W/2, 160, 'PARCHE\nPARTY', {
-    fontFamily: 'monospace', fontSize: '80px', color: C.p1t, fontStyle: 'bold',
-    align: 'center', lineSpacing: -14,
-  }).setOrigin(0.5);
+  // Main 8-bit title
+  UI.introTitle = retT(W/2, 150, 'PARCHE\nPARTY', 6, C.p1t, 0.5);
   UI.intro.add(UI.introTitle);
 
   // Subtitle
-  UI.introPulse = scene.add.text(W/2, 298, '— EL ARCADE COLOMBIANO —', {
-    fontFamily: 'monospace', fontSize: '15px', color: C.p2t,
-  }).setOrigin(0.5);
+  UI.introPulse = retT(W/2, 275, '— EL ARCADE COLOMBIANO —', 2, C.p2t, 0.5);
   UI.intro.add(UI.introPulse);
 
   // Separator line
-  UI.intro.add(rect(W/2, 322, 520, 1, C.div, 1));
+  UI.intro.add(rect(W/2, 305, 520, 1, C.div, 1));
 
   // High score label
-  UI.intro.add(scene.add.text(W/2, 342, 'MEJORES PUNTAJES', {
-    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
-  }).setOrigin(0.5));
+  UI.intro.add(retT(W/2, 325, 'MEJORES PUNTAJES', 2, C.neont, 0.5));
 
-  UI.introScores = scene.add.text(W/2, 386, '', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#aaaaaa',
-    align: 'center', lineSpacing: 6,
-  }).setOrigin(0.5);
+  UI.introScores = retT(W/2, 375, '', 2, '#AAAAAA', 0.5);
   UI.intro.add(UI.introScores);
 
   // Separator
-  UI.intro.add(rect(W/2, 440, 520, 1, C.div, 1));
+  UI.intro.add(rect(W/2, 435, 520, 1, C.div, 1));
 
   // Insert coin / press start (blink target)
-  UI.introBtn = scene.add.text(W/2, 468, '★  PRESIONA  START  ★', {
-    fontFamily: 'monospace', fontSize: '22px', color: C.wt, fontStyle: 'bold',
-  }).setOrigin(0.5);
+  UI.introBtn = retT(W/2, 465, '★  PRESIONA  START  ★', 3, C.wt, 0.5);
   UI.intro.add(UI.introBtn);
 
   // Controls hint
-  UI.intro.add(scene.add.text(W/2, 502, 'P1: ENTER    ·    P2: TECLA 2', {
-    fontFamily: 'monospace', fontSize: '12px', color: '#444466',
-  }).setOrigin(0.5));
+  UI.intro.add(retT(W/2, 505, 'P1: ENTER    ·    P2: TECLA 2', 2, '#555577', 0.5));
 
   // Bottom border
   UI.intro.add(rect(W/2, H - 16, W, 2, C.p2, 0.4));
-  UI.intro.add(scene.add.text(W/2, H - 8, 'PARCHE PARTY  ©2026  HARK0616', {
-    fontFamily: 'monospace', fontSize: '9px', color: '#333355',
-  }).setOrigin(0.5));
+  UI.intro.add(retT(W/2, H - 8, 'PARCHE PARTY  ©2026  HARK0616', 1, '#444466', 0.5));
 
   // ── TRANSITION SCREEN
   UI.trans = scene.add.container(0, 0).setDepth(40).setVisible(false);
@@ -663,29 +731,20 @@ function buildUI(scene) {
   UI.trans.add(rect(W/2, 3, W, 6, C.p1, 0.9));
   UI.trans.add(rect(W/2, H-3, W, 6, C.p1, 0.9));
 
-  UI.transRound = scene.add.text(W/2, 130, '', {
-    fontFamily: 'monospace', fontSize: '16px', color: C.neont,
-  }).setOrigin(0.5);
+  UI.transRound = retT(W/2, 130, '', 2, C.neont, 0.5);
   UI.trans.add(UI.transRound);
 
   UI.trans.add(rect(W/2, 160, 600, 1, C.div, 0.8));
 
-  UI.transName = scene.add.text(W/2, 260, '', {
-    fontFamily: 'monospace', fontSize: '58px', color: C.p1t, fontStyle: 'bold',
-    align: 'center',
-  }).setOrigin(0.5);
+  UI.transName = retT(W/2, 250, '', 5, C.p1t, 0.5);
   UI.trans.add(UI.transName);
 
-  UI.trans.add(rect(W/2, 370, 600, 1, C.div, 0.8));
+  UI.trans.add(rect(W/2, 350, 600, 1, C.div, 0.8));
 
-  UI.transHint = scene.add.text(W/2, 400, '', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#888888', align: 'center',
-  }).setOrigin(0.5);
+  UI.transHint = retT(W/2, 390, '', 2, '#AAAAAA', 0.5);
   UI.trans.add(UI.transHint);
 
-  UI.transTimer = scene.add.text(W/2, H - 50, '', {
-    fontFamily: 'monospace', fontSize: '20px', color: C.neont, fontStyle: 'bold',
-  }).setOrigin(0.5);
+  UI.transTimer = retT(W/2, H - 50, '', 3, C.neont, 0.5);
   UI.trans.add(UI.transTimer);
 
   // ── HUD — estilo 1UP / 2UP retro arcade
@@ -696,30 +755,22 @@ function buildUI(scene) {
   UI.hud.add(rect(W/2, 56, W, 2, C.div, 0.9));
 
   // 1UP label + score
-  UI.hud.add(scene.add.text(80, 10, '1UP', {
-    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
-  }).setOrigin(0.5, 0));
-  UI.hudP1 = scene.add.text(80, 26, '000000', {
-    fontFamily: 'monospace', fontSize: '22px', color: C.p1t, fontStyle: 'bold',
-  }).setOrigin(0.5, 0); UI.hud.add(UI.hudP1);
+  UI.hud.add(retT(80, 10, '1UP', 2, C.neont, { x: 0.5, y: 0 }));
+  UI.hudP1 = retT(80, 28, '000000', 3, C.p1t, { x: 0.5, y: 0 });
+  UI.hud.add(UI.hudP1);
 
   // 2UP label + score
-  UI.hud.add(scene.add.text(W - 80, 10, '2UP', {
-    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
-  }).setOrigin(0.5, 0));
-  UI.hudP2 = scene.add.text(W - 80, 26, '000000', {
-    fontFamily: 'monospace', fontSize: '22px', color: C.p2t, fontStyle: 'bold',
-  }).setOrigin(0.5, 0); UI.hud.add(UI.hudP2);
+  UI.hud.add(retT(W - 80, 10, '2UP', 2, C.neont, { x: 0.5, y: 0 }));
+  UI.hudP2 = retT(W - 80, 28, '000000', 3, C.p2t, { x: 0.5, y: 0 });
+  UI.hud.add(UI.hudP2);
 
   // Round indicator (center top)
-  UI.hudRound = scene.add.text(W/2, 10, 'RONDA 1/4', {
-    fontFamily: 'monospace', fontSize: '11px', color: '#666688',
-  }).setOrigin(0.5, 0); UI.hud.add(UI.hudRound);
+  UI.hudRound = retT(W/2, 10, 'RONDA 1/4', 2, '#777799', { x: 0.5, y: 0 });
+  UI.hud.add(UI.hudRound);
 
   // Minigame name (center, small)
-  UI.hudMgName = scene.add.text(W/2, 26, '', {
-    fontFamily: 'monospace', fontSize: '13px', color: '#555577',
-  }).setOrigin(0.5, 0); UI.hud.add(UI.hudMgName);
+  UI.hudMgName = retT(W/2, 28, '', 2, '#555577', { x: 0.5, y: 0 });
+  UI.hud.add(UI.hudMgName);
 
   // Vertical divider
   UI.divLine = rect(HALF, H/2 + 30, 2, H - 60, C.div, 0.4); UI.hud.add(UI.divLine);
@@ -727,9 +778,8 @@ function buildUI(scene) {
   // Timer — big, at bottom center
   UI.hud.add(rect(W/2, H - 22, 80, 28, 0x000000));
   UI.hud.add(rect(W/2, H - 22, 80, 28, C.div, 0.5));
-  UI.hudTimer = scene.add.text(W/2, H - 22, '10', {
-    fontFamily: 'monospace', fontSize: '26px', color: C.wt, fontStyle: 'bold',
-  }).setOrigin(0.5); UI.hud.add(UI.hudTimer);
+  UI.hudTimer = retT(W/2, H - 22, '10', 3, C.wt, 0.5);
+  UI.hud.add(UI.hudTimer);
 
   // ── RESULT SCREEN
   UI.result = scene.add.container(0, 0).setDepth(35).setVisible(false);
@@ -741,40 +791,24 @@ function buildUI(scene) {
   UI.result.add(rect(3, H/2, 6, H, C.p1, 0.2));
   UI.result.add(rect(W-3, H/2, 6, H, C.p2, 0.2));
 
-  UI.resultTitle = scene.add.text(W/2, 80, '', {
-    fontFamily: 'monospace', fontSize: '16px', color: C.neont, fontStyle: 'bold',
-    stroke: '#000000', strokeThickness: 3,
-    shadow: { offsetX: 0, offsetY: 0, color: C.neont, blur: 6, fill: true },
-  }).setOrigin(0.5); UI.result.add(UI.resultTitle);
+  UI.resultTitle = retT(W/2, 80, '', 2, C.neont, 0.5);
+  UI.result.add(UI.resultTitle);
 
-  UI.result.add(scene.add.text(W/2, 113, '────────────────────────', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#333355',
-  }).setOrigin(0.5));
+  UI.result.add(rect(W/2, 113, 500, 1, C.div, 0.6));
 
-  UI.resultWinner = scene.add.text(W/2, 200, '', {
-    fontFamily: 'monospace', fontSize: '42px', color: C.p1t, fontStyle: 'bold',
-    align: 'center', stroke: '#000000', strokeThickness: 5,
-    shadow: { offsetX: 0, offsetY: 0, color: C.p1t, blur: 12, fill: true },
-  }).setOrigin(0.5); UI.result.add(UI.resultWinner);
+  UI.resultWinner = retT(W/2, 190, '', 4, C.p1t, 0.5);
+  UI.result.add(UI.resultWinner);
 
-  UI.result.add(scene.add.text(W/2, 267, '────────────────────────', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#333355',
-  }).setOrigin(0.5));
+  UI.result.add(rect(W/2, 267, 500, 1, C.div, 0.6));
 
-  UI.resultPts = scene.add.text(W/2, 310, '', {
-    fontFamily: 'monospace', fontSize: '20px', color: '#dddddd',
-    align: 'center', stroke: '#000000', strokeThickness: 3,
-  }).setOrigin(0.5); UI.result.add(UI.resultPts);
+  UI.resultPts = retT(W/2, 305, '', 3, '#DDDDDD', 0.5);
+  UI.result.add(UI.resultPts);
 
-  UI.resultTotal = scene.add.text(W/2, 385, '', {
-    fontFamily: 'monospace', fontSize: '15px', color: '#666688',
-    align: 'center', stroke: '#000000', strokeThickness: 2,
-  }).setOrigin(0.5); UI.result.add(UI.resultTotal);
+  UI.resultTotal = retT(W/2, 375, '', 2, '#8888AA', 0.5);
+  UI.result.add(UI.resultTotal);
 
-  UI.resultNext = scene.add.text(W/2, H - 35, '', {
-    fontFamily: 'monospace', fontSize: '13px', color: '#444466',
-    stroke: '#000000', strokeThickness: 2,
-  }).setOrigin(0.5); UI.result.add(UI.resultNext);
+  UI.resultNext = retT(W/2, H - 35, '', 2, '#555577', 0.5);
+  UI.result.add(UI.resultNext);
 
   // ── FINAL SCREEN
   UI.final = scene.add.container(0, 0).setDepth(45).setVisible(false);
@@ -790,53 +824,37 @@ function buildUI(scene) {
 
   UI.final.add(rect(W/2, 50, 700, 2, C.p1, 0.4));
 
-  UI.finalWinner = scene.add.text(W/2, 100, '', {
-    fontFamily: 'monospace', fontSize: '38px', color: C.p1t, fontStyle: 'bold',
-    align: 'center', stroke: '#000000', strokeThickness: 5,
-    shadow: { offsetX: 0, offsetY: 0, color: C.p1t, blur: 16, fill: true },
-  }).setOrigin(0.5); UI.final.add(UI.finalWinner);
+  UI.finalWinner = retT(W/2, 95, '', 4, C.p1t, 0.5);
+  UI.final.add(UI.finalWinner);
 
-  UI.finalSub = scene.add.text(W/2, 176, '', {
-    fontFamily: 'monospace', fontSize: '16px', color: C.neont,
-    align: 'center', stroke: '#000000', strokeThickness: 3,
-  }).setOrigin(0.5); UI.final.add(UI.finalSub);
+  UI.finalSub = retT(W/2, 170, '', 2, C.neont, 0.5);
+  UI.final.add(UI.finalSub);
 
-  UI.final.add(rect(W/2, 210, 700, 2, C.div, 0.6));
+  UI.final.add(rect(W/2, 205, 700, 2, C.div, 0.6));
 
-  UI.finalScores = scene.add.text(W/2, 270, '', {
-    fontFamily: 'monospace', fontSize: '40px', fontStyle: 'bold', align: 'center',
-    color: '#FFFFFF', stroke: '#000000', strokeThickness: 5,
-  }).setOrigin(0.5); UI.final.add(UI.finalScores);
+  UI.finalScores = retT(W/2, 260, '', 4, '#FFFFFF', 0.5);
+  UI.final.add(UI.finalScores);
 
-  UI.final.add(rect(W/2, 330, 700, 2, C.div, 0.6));
+  UI.final.add(rect(W/2, 320, 700, 2, C.div, 0.6));
 
-  UI.final.add(scene.add.text(W/2, 355, '◄  TOP SCORES  ►', {
-    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
-    stroke: '#000000', strokeThickness: 2,
-  }).setOrigin(0.5));
+  UI.final.add(retT(W/2, 345, '◄  TOP SCORES  ►', 2, C.neont, 0.5));
 
-  UI.finalBoard = scene.add.text(W/2, 400, '', {
-    fontFamily: 'monospace', fontSize: '15px', color: '#bbbbcc',
-    align: 'center', lineSpacing: 6, stroke: '#000000', strokeThickness: 2,
-  }).setOrigin(0.5); UI.final.add(UI.finalBoard);
+  UI.finalBoard = retT(W/2, 400, '', 2, '#BBBBCC', 0.5);
+  UI.final.add(UI.finalBoard);
 
-  UI.finalBtn = scene.add.text(W/2, H - 30, '►  PRESIONA START PARA JUGAR DE NUEVO  ◄', {
-    fontFamily: 'monospace', fontSize: '12px', color: '#555577',
-    stroke: '#000000', strokeThickness: 2,
-  }).setOrigin(0.5); UI.final.add(UI.finalBtn);
+  UI.finalBtn = retT(W/2, H - 30, '►  PRESIONA START PARA JUGAR DE NUEVO  ◄', 2, '#666688', 0.5);
+  UI.final.add(UI.finalBtn);
 
   // ── NAME ENTRY (letras para highscore)
   UI.name = scene.add.container(0, 0).setDepth(46).setVisible(false);
   UI.name.add(rect(W/2, H/2, W, H, C.bg, 0.98));
-  UI.nameTitle = scene.add.text(W/2, 70, '¡INGRESA TUS INICIALES!', {
-    fontFamily: 'monospace', fontSize: '20px', color: C.p1t, fontStyle: 'bold',
-  }).setOrigin(0.5); UI.name.add(UI.nameTitle);
-  UI.nameWho = scene.add.text(W/2, 108, '', {
-    fontFamily: 'monospace', fontSize: '14px', color: '#888888',
-  }).setOrigin(0.5); UI.name.add(UI.nameWho);
-  UI.nameVal = scene.add.text(W/2, 168, '_ _ _', {
-    fontFamily: 'monospace', fontSize: '48px', color: '#FFFFFF', fontStyle: 'bold', letterSpacing: 12,
-  }).setOrigin(0.5); UI.name.add(UI.nameVal);
+  UI.nameTitle = retT(W/2, 60, '¡INGRESA TUS INICIALES!', 3, C.p1t, 0.5);
+  UI.name.add(UI.nameTitle);
+  UI.nameWho = retT(W/2, 100, '', 2, '#888888', 0.5);
+  UI.name.add(UI.nameWho);
+  UI.nameVal = retT(W/2, 155, '_ _ _', 5, '#FFFFFF', 0.5);
+  UI.name.add(UI.nameVal);
+
   // Letter grid
   const LGRID = [
     ['A','B','C','D','E','F','G'],
@@ -852,20 +870,16 @@ function buildUI(scene) {
     for (let col = 0; col < cols.length; col++) {
       const val = cols[col];
       const cx = W/2 - totalW/2 + 26 + col * 52;
-      const cy = 260 + row * 36;
+      const cy = 250 + row * 38;
       const bg = G.add.rectangle(cx, cy, val.length > 1 ? 58 : 44, 30, C.dark);
       bg.setStrokeStyle(1, C.div, 0.7);
-      const lb = G.add.text(cx, cy, val, {
-        fontFamily: 'monospace', fontSize: val.length > 1 ? '12px' : '17px',
-        color: '#cccccc', fontStyle: 'bold',
-      }).setOrigin(0.5);
+      const lb = retT(cx, cy, val, 2, '#CCCCCC', 0.5);
       UI.name.add(bg); UI.name.add(lb);
       UI.nameGrid.push({ bg, lb, row, col, val, lgrid: LGRID });
     }
   }
-  UI.nameHint = scene.add.text(W/2, H - 40, 'MOVER JOYSTICK · BOTÓN 1 PARA CONFIRMAR', {
-    fontFamily: 'monospace', fontSize: '11px', color: '#444444',
-  }).setOrigin(0.5); UI.name.add(UI.nameHint);
+  UI.nameHint = retT(W/2, H - 35, 'MOVER JOYSTICK · BOTÓN 1 PARA CONFIRMAR', 1, '#666688', 0.5);
+  UI.name.add(UI.nameHint);
 }
 
 function refreshHud() {

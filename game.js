@@ -757,20 +757,20 @@ function buildUI(scene) {
   UI.trans.add(rect(W/2, 3, W, 6, C.p1, 0.9));
   UI.trans.add(rect(W/2, H-3, W, 6, C.p1, 0.9));
 
-  UI.transRound = retT(W/2, 130, '', 2, C.neont, 0.5);
+  UI.transRound = retT(W/2, 110, '', 3, C.neont, 0.5);
   UI.trans.add(UI.transRound);
 
-  UI.trans.add(rect(W/2, 160, 600, 1, C.div, 0.8));
+  UI.trans.add(rect(W/2, 145, 600, 2, C.div, 0.8));
 
-  UI.transName = retT(W/2, 250, '', 5, C.p1t, 0.5);
+  UI.transName = retT(W/2, 230, '', 6, C.p1t, 0.5);
   UI.trans.add(UI.transName);
 
-  UI.trans.add(rect(W/2, 350, 600, 1, C.div, 0.8));
+  UI.trans.add(rect(W/2, 335, 600, 2, C.div, 0.8));
 
-  UI.transHint = retT(W/2, 390, '', 2, '#AAAAAA', 0.5);
+  UI.transHint = retT(W/2, 400, '', 3, '#FFFFFF', 0.5);
   UI.trans.add(UI.transHint);
 
-  UI.transTimer = retT(W/2, H - 50, '', 3, C.neont, 0.5);
+  UI.transTimer = retT(W/2, H - 55, '', 4, C.neont, 0.5);
   UI.trans.add(UI.transTimer);
 
   // ── HUD — estilo 1UP / 2UP retro arcade
@@ -977,10 +977,10 @@ const MG_NAMES = {
   cafe:  'CAFÉ EN\nEQUILIBRIO',
 };
 const MG_HINTS = {
-  arepa: 'Atrapa las arepas doradas ·  ← → · Evita los carbones',
-  chiva: 'Esquiva los obstáculos ·  ← → para cambiar carril',
-  tejo:  'Apunta con ← → · Mantén botón para cargar · Suelta para lanzar',
-  cafe:  'Balancea el pocillo con ← →  · No derrames el café',
+  arepa: 'ATRAPA LAS AREPAS DORADAS\n¡EVITA LOS CARBONES!',
+  chiva: 'ESQUIVA LOS OBSTÁCULOS\nCAMBIA DE CARRIL CON [← / →]',
+  tejo:  'APUNTA CON [← / →] · MANTÉN BOTÓN 1\n¡SUELTA PARA LANZAR AL BOCÍN!',
+  cafe:  'EQUILIBRA LA BANDEJA CON [← / →]\n¡NO BOTES EL POCILLO DE CAFÉ!',
 };
 
 let transData = {};

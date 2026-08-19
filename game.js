@@ -5,18 +5,19 @@ const W = 800, H = 600;
 const HALF = W / 2;
 const STORAGE_KEY = 'parche-party-scores';
 
-// ─── COLORES ───────────────────────────────────────────────────────────────
+// ─── COLORES (paleta retro CRT arcade) ────────────────────────────────────
 const C = {
-  bg:      0x07080f, panel:   0x0f1020, div:     0x2a2a4a,
-  p1:      0xFFD700, p1d:     0xB89A00, p1t:     '#FFD700',
-  p2:      0xFF6EC7, p2d:     0xB04D8A, p2t:     '#FF6EC7',
+  bg:      0x000000, panel:   0x03030a, div:     0x1a1a3a,
+  p1:      0xFFE600, p1d:     0xB8A800, p1t:     '#FFE600',
+  p2:      0xFF44AA, p2d:     0xAA2266, p2t:     '#FF44AA',
+  neon:    0x00FF41, neont:   '#00FF41',
   white:   0xFFFFFF, wt:      '#FFFFFF',
-  green:   0x5CDB5C, red:     0xFF4444, rt:      '#FF4444',
-  grey:    0x888888, dark:    0x333355,
+  green:   0x00FF41, red:     0xFF2222, rt:      '#FF2222',
+  grey:    0x666666, dark:    0x111122,
   // Confeti bandera Colombia
-  col1:    0xFFD700, col2:    0x003087, col3:    0xCC0001,
+  col1:    0xFFE600, col2:    0x003087, col3:    0xCC0001,
   // Arepas
-  arepa:   0xF4A800, arepaDk: 0xC47800, carbon:  0x2a2a2a,
+  arepa:   0xF4A800, arepaDk: 0xC47800, carbon:  0x222222,
   // Chiva
   ch1:     0xFF2200, ch2:     0xFFDD00, ch3:     0x0044FF, ch4: 0x00AA44,
   // Tejo
@@ -86,6 +87,7 @@ function create() {
 
   setupInput(G);
   buildUI(G);
+  addCRTEffect(G);
 
   loadScores().then(s => {
     ST.highScores = s;
@@ -280,80 +282,191 @@ function spawnConfetti(count) {
   }
 }
 
+// ─── EFECTO CRT ─────────────────────────────────────────────────────────────
+function addCRTEffect(scene) {
+  // Scanlines — líneas horizontales semi-transparentes cada 3px (efecto CRT)
+  const sl = scene.add.graphics();
+  sl.setDepth(92);
+  for (let y = 0; y < H; y += 3) {
+    sl.fillStyle(0x000000, 0.22);
+    sl.fillRect(0, y, W, 1);
+  }
+
+  // Vignette — oscurecer bordes como pantalla CRT curva
+  const vig = scene.add.graphics();
+  vig.setDepth(91);
+  const steps = 28;
+  for (let i = 0; i < steps; i++) {
+    const a = ((steps - i) / steps) * 0.55;
+    vig.fillStyle(0x000000, a);
+    vig.fillRect(i, i, W - i*2, 3);              // top
+    vig.fillRect(i, H - i - 3, W - i*2, 3);     // bottom
+    vig.fillRect(i, i, 3, H - i*2);             // left
+    vig.fillRect(W - i - 3, i, 3, H - i*2);    // right
+  }
+
+  // Phosphor border glow
+  const border = scene.add.graphics();
+  border.setDepth(90);
+  border.lineStyle(4, C.neon, 0.06);
+  border.strokeRect(0, 0, W, H);
+  border.lineStyle(2, C.p1, 0.04);
+  border.strokeRect(4, 4, W - 8, H - 8);
+}
+
 // ─── UI CONTAINERS ─────────────────────────────────────────────────────────
 let UI = {};
 
 function buildUI(scene) {
-  // Background
+  // Background — true black CRT
   UI.bg = rect(W / 2, H / 2, W, H, C.bg);
   UI.bg.setDepth(0);
 
-  // ── INTRO SCREEN
+  // ── INTRO SCREEN (attract mode)
   UI.intro = scene.add.container(0, 0).setDepth(30).setVisible(false);
-  const iOverlay = rect(W/2, H/2, W, H, C.bg, 0.97); iOverlay.setDepth(0);
-  UI.intro.add(iOverlay);
-  UI.introSub = scene.add.text(W/2, 96, 'PLATANUS HACK 26 · BOGOTÁ', {
+  UI.intro.add(rect(W/2, H/2, W, H, C.bg, 1));
+
+  // Top banner line
+  UI.intro.add(rect(W/2, 44, W, 2, C.p1, 0.8));
+  UI.intro.add(scene.add.text(W/2, 22, '★  PLATANUS HACK 26 · BOGOTÁ  ★', {
     fontFamily: 'monospace', fontSize: '13px', color: C.p1t,
+  }).setOrigin(0.5));
+
+  // Stars scattered
+  const starG = scene.add.graphics();
+  for (let i = 0; i < 60; i++) {
+    starG.fillStyle(0xFFFFFF, 0.08 + Math.random() * 0.18);
+    starG.fillRect(Math.random() * W, 50 + Math.random() * (H - 80), Math.random() < 0.7 ? 1 : 2, Math.random() < 0.7 ? 1 : 2);
+  }
+  UI.intro.add(starG);
+
+  // Title shadow (offset 3px)
+  const titleShadow = scene.add.text(W/2 + 4, 164, 'PARCHE\nPARTY', {
+    fontFamily: 'monospace', fontSize: '80px', color: '#220000', fontStyle: 'bold',
+    align: 'center', lineSpacing: -14,
   }).setOrigin(0.5);
-  UI.intro.add(UI.introSub);
+  UI.intro.add(titleShadow);
+
   UI.introTitle = scene.add.text(W/2, 160, 'PARCHE\nPARTY', {
-    fontFamily: 'monospace', fontSize: '72px', color: C.p1t, fontStyle: 'bold',
-    align: 'center', lineSpacing: -10,
+    fontFamily: 'monospace', fontSize: '80px', color: C.p1t, fontStyle: 'bold',
+    align: 'center', lineSpacing: -14,
   }).setOrigin(0.5);
   UI.intro.add(UI.introTitle);
-  UI.introPulse = scene.add.text(W/2, 280, 'EL ARCADE COLOMBIANO', {
-    fontFamily: 'monospace', fontSize: '16px', color: '#FF6EC7',
+
+  // Subtitle
+  UI.introPulse = scene.add.text(W/2, 298, '— EL ARCADE COLOMBIANO —', {
+    fontFamily: 'monospace', fontSize: '15px', color: C.p2t,
   }).setOrigin(0.5);
   UI.intro.add(UI.introPulse);
-  UI.introScores = scene.add.text(W/2, 340, '', {
-    fontFamily: 'monospace', fontSize: '13px', color: '#aaaaaa', align: 'center',
+
+  // Separator line
+  UI.intro.add(rect(W/2, 322, 520, 1, C.div, 1));
+
+  // High score label
+  UI.intro.add(scene.add.text(W/2, 342, 'MEJORES PUNTAJES', {
+    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
+  }).setOrigin(0.5));
+
+  UI.introScores = scene.add.text(W/2, 386, '', {
+    fontFamily: 'monospace', fontSize: '14px', color: '#aaaaaa',
+    align: 'center', lineSpacing: 6,
   }).setOrigin(0.5);
   UI.intro.add(UI.introScores);
-  UI.introBtn = scene.add.text(W/2, H - 60, 'PRESIONA START', {
-    fontFamily: 'monospace', fontSize: '20px', color: '#FFFFFF', fontStyle: 'bold',
+
+  // Separator
+  UI.intro.add(rect(W/2, 440, 520, 1, C.div, 1));
+
+  // Insert coin / press start (blink target)
+  UI.introBtn = scene.add.text(W/2, 468, '★  PRESIONA  START  ★', {
+    fontFamily: 'monospace', fontSize: '22px', color: C.wt, fontStyle: 'bold',
   }).setOrigin(0.5);
   UI.intro.add(UI.introBtn);
 
+  // Controls hint
+  UI.intro.add(scene.add.text(W/2, 502, 'P1: ENTER    ·    P2: TECLA 2', {
+    fontFamily: 'monospace', fontSize: '12px', color: '#444466',
+  }).setOrigin(0.5));
+
+  // Bottom border
+  UI.intro.add(rect(W/2, H - 16, W, 2, C.p2, 0.4));
+  UI.intro.add(scene.add.text(W/2, H - 8, 'PARCHE PARTY  ©2026  HARK0616', {
+    fontFamily: 'monospace', fontSize: '9px', color: '#333355',
+  }).setOrigin(0.5));
+
   // ── TRANSITION SCREEN
   UI.trans = scene.add.container(0, 0).setDepth(40).setVisible(false);
-  UI.trans.add(rect(W/2, H/2, W, H, C.bg, 0.95));
-  UI.transRound = scene.add.text(W/2, 160, '', {
-    fontFamily: 'monospace', fontSize: '18px', color: '#aaaaaa',
+  UI.trans.add(rect(W/2, H/2, W, H, C.bg, 0.97));
+  // Top/bottom neon bars
+  UI.trans.add(rect(W/2, 3, W, 6, C.p1, 0.9));
+  UI.trans.add(rect(W/2, H-3, W, 6, C.p1, 0.9));
+
+  UI.transRound = scene.add.text(W/2, 130, '', {
+    fontFamily: 'monospace', fontSize: '16px', color: C.neont,
   }).setOrigin(0.5);
   UI.trans.add(UI.transRound);
+
+  UI.trans.add(rect(W/2, 160, 600, 1, C.div, 0.8));
+
   UI.transName = scene.add.text(W/2, 260, '', {
-    fontFamily: 'monospace', fontSize: '52px', color: C.p1t, fontStyle: 'bold',
+    fontFamily: 'monospace', fontSize: '58px', color: C.p1t, fontStyle: 'bold',
     align: 'center',
   }).setOrigin(0.5);
   UI.trans.add(UI.transName);
-  UI.transHint = scene.add.text(W/2, 360, '', {
-    fontFamily: 'monospace', fontSize: '15px', color: '#cccccc', align: 'center',
+
+  UI.trans.add(rect(W/2, 370, 600, 1, C.div, 0.8));
+
+  UI.transHint = scene.add.text(W/2, 400, '', {
+    fontFamily: 'monospace', fontSize: '14px', color: '#888888', align: 'center',
   }).setOrigin(0.5);
   UI.trans.add(UI.transHint);
+
   UI.transTimer = scene.add.text(W/2, H - 50, '', {
-    fontFamily: 'monospace', fontSize: '13px', color: '#666666',
+    fontFamily: 'monospace', fontSize: '20px', color: C.neont, fontStyle: 'bold',
   }).setOrigin(0.5);
   UI.trans.add(UI.transTimer);
 
-  // ── HUD (visible during playing)
+  // ── HUD — estilo 1UP / 2UP retro arcade
   UI.hud = scene.add.container(0, 0).setDepth(10).setVisible(false);
-  UI.hudBg = rect(W/2, 22, W, 44, 0x0a0a18); UI.hud.add(UI.hudBg);
-  UI.divLine = rect(HALF, H/2, 3, H, C.div, 0.5); UI.hud.add(UI.divLine);
-  UI.hudP1 = scene.add.text(14, 22, 'P1  0', {
-    fontFamily: 'monospace', fontSize: '20px', color: C.p1t, fontStyle: 'bold',
-  }).setOrigin(0, 0.5); UI.hud.add(UI.hudP1);
-  UI.hudP2 = scene.add.text(W - 14, 22, '0  P2', {
-    fontFamily: 'monospace', fontSize: '20px', color: C.p2t, fontStyle: 'bold',
-  }).setOrigin(1, 0.5); UI.hud.add(UI.hudP2);
-  UI.hudRound = scene.add.text(W/2, 22, 'RONDA 1/4', {
-    fontFamily: 'monospace', fontSize: '13px', color: '#aaaaaa',
-  }).setOrigin(0.5); UI.hud.add(UI.hudRound);
-  UI.hudTimer = scene.add.text(W/2, H - 20, '10', {
-    fontFamily: 'monospace', fontSize: '28px', color: '#FFFFFF', fontStyle: 'bold',
+
+  // Header band
+  UI.hudBg = rect(W/2, 28, W, 56, 0x000000); UI.hud.add(UI.hudBg);
+  UI.hud.add(rect(W/2, 56, W, 2, C.div, 0.9));
+
+  // 1UP label + score
+  UI.hud.add(scene.add.text(80, 10, '1UP', {
+    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
+  }).setOrigin(0.5, 0));
+  UI.hudP1 = scene.add.text(80, 26, '000000', {
+    fontFamily: 'monospace', fontSize: '22px', color: C.p1t, fontStyle: 'bold',
+  }).setOrigin(0.5, 0); UI.hud.add(UI.hudP1);
+
+  // 2UP label + score
+  UI.hud.add(scene.add.text(W - 80, 10, '2UP', {
+    fontFamily: 'monospace', fontSize: '12px', color: C.neont,
+  }).setOrigin(0.5, 0));
+  UI.hudP2 = scene.add.text(W - 80, 26, '000000', {
+    fontFamily: 'monospace', fontSize: '22px', color: C.p2t, fontStyle: 'bold',
+  }).setOrigin(0.5, 0); UI.hud.add(UI.hudP2);
+
+  // Round indicator (center top)
+  UI.hudRound = scene.add.text(W/2, 10, 'RONDA 1/4', {
+    fontFamily: 'monospace', fontSize: '11px', color: '#666688',
+  }).setOrigin(0.5, 0); UI.hud.add(UI.hudRound);
+
+  // Minigame name (center, small)
+  UI.hudMgName = scene.add.text(W/2, 26, '', {
+    fontFamily: 'monospace', fontSize: '13px', color: '#555577',
+  }).setOrigin(0.5, 0); UI.hud.add(UI.hudMgName);
+
+  // Vertical divider
+  UI.divLine = rect(HALF, H/2 + 30, 2, H - 60, C.div, 0.4); UI.hud.add(UI.divLine);
+
+  // Timer — big, at bottom center
+  UI.hud.add(rect(W/2, H - 22, 80, 28, 0x000000));
+  UI.hud.add(rect(W/2, H - 22, 80, 28, C.div, 0.5));
+  UI.hudTimer = scene.add.text(W/2, H - 22, '10', {
+    fontFamily: 'monospace', fontSize: '26px', color: C.wt, fontStyle: 'bold',
   }).setOrigin(0.5); UI.hud.add(UI.hudTimer);
-  UI.hudMgName = scene.add.text(W/2, 50, '', {
-    fontFamily: 'monospace', fontSize: '12px', color: '#666666',
-  }).setOrigin(0.5); UI.hud.add(UI.hudMgName);
 
   // ── RESULT SCREEN
   UI.result = scene.add.container(0, 0).setDepth(35).setVisible(false);
@@ -438,8 +551,8 @@ function buildUI(scene) {
 }
 
 function refreshHud() {
-  UI.hudP1.setText('P1  ' + ST.scores.p1);
-  UI.hudP2.setText(ST.scores.p2 + '  P2');
+  UI.hudP1.setText(String(ST.scores.p1).padStart(6, '0'));
+  UI.hudP2.setText(String(ST.scores.p2).padStart(6, '0'));
   UI.hudRound.setText('RONDA ' + ST.round + '/' + ST.totalRounds);
 }
 
@@ -458,9 +571,9 @@ function showIntro() {
   // show top 3 highscores
   if (ST.highScores.length) {
     const lines = ST.highScores.slice(0, 3).map((e, i) =>
-      (i + 1) + '. ' + e.name + '  ' + e.score
+      (i + 1) + '.  ' + (e.name || '???').padEnd(4,' ') + '  ' + String(e.score).padStart(6, '0')
     );
-    UI.introScores.setText('MEJORES PUNTAJES\n' + lines.join('\n'));
+    UI.introScores.setText(lines.join('\n'));
   } else {
     UI.introScores.setText('');
   }
